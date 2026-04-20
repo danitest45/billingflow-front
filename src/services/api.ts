@@ -1,0 +1,218 @@
+import type { AuthSession, DashboardSummary, LoginPayload } from "../types/domain";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "https://localhost:44323";
+const STORAGE_KEY = "billingflow:session";
+const DEFAULT_ERROR_MESSAGE = "Nao foi possivel processar sua solicitacao agora. Tente novamente em instantes.";
+
+type RequestOptions = RequestInit & {
+  requiresAuth?: boolean;
+};
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+export function getStoredSession() {
+  const rawSession = localStorage.getItem(STORAGE_KEY);
+
+  if (!rawSession) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawSession) as AuthSession;
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return null;
+  }
+}
+
+export function saveSession(session: AuthSession) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+}
+
+export function clearSession() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function isTechnicalMessage(message: string) {
+  const normalized = message.trim().toLowerCase();
+
+  return (
+    !normalized ||
+    normalized === "[object object]" ||
+    normalized.includes("typeerror") ||
+    normalized.includes("syntaxerror") ||
+    normalized.includes("referenceerror") ||
+    normalized.includes("failed to fetch") ||
+    normalized.includes("networkerror") ||
+    normalized.includes("<!doctype") ||
+    normalized.includes("<html") ||
+    normalized.includes("stack") ||
+    normalized.includes(" at ")
+  );
+}
+
+function sanitizeComparableMessage(message: string) {
+  return message
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toLowerCase();
+}
+
+function mapBusinessErrorMessage(message: string) {
+  const normalized = sanitizeComparableMessage(message);
+
+  if (normalized.includes("ja existe cobranca para este cliente no mes atual")) {
+    return "Ja existe uma cobranca gerada para este cliente neste mes.";
+  }
+
+  if (
+    normalized.includes("senha invalida") ||
+    normalized.includes("usuario invalido") ||
+    normalized.includes("usuario ou senha invalido") ||
+    normalized.includes("usuario nao encontrado")
+  ) {
+    return "Usuario ou senha invalidos.";
+  }
+
+  return message;
+}
+
+export function normalizeErrorMessage(value: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
+  if (typeof value === "string") {
+    const message = value.trim();
+    return isTechnicalMessage(message) ? fallback : mapBusinessErrorMessage(message);
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = normalizeErrorMessage(item, "");
+      if (message) {
+        return message;
+      }
+    }
+
+    return fallback;
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+
+    const directMessage = normalizeErrorMessage(
+      record.message ?? record.error ?? record.detail ?? record.title,
+      ""
+    );
+    if (directMessage) {
+      return directMessage;
+    }
+
+    if (record.errors && typeof record.errors === "object") {
+      const nestedErrors = Object.values(record.errors as Record<string, unknown>);
+      const nestedMessage = normalizeErrorMessage(nestedErrors, "");
+      if (nestedMessage) {
+        return nestedMessage;
+      }
+    }
+  }
+
+  return fallback;
+}
+
+async function parseErrorMessage(response: Response) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const payload = await response.json();
+    return normalizeErrorMessage(payload);
+  }
+
+  const text = await response.text();
+  return normalizeErrorMessage(text);
+}
+
+export function getErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE) {
+  if (error instanceof ApiError) {
+    return normalizeErrorMessage(error.message, fallback);
+  }
+
+  if (error instanceof Error) {
+    return normalizeErrorMessage(error.message, fallback);
+  }
+
+  return fallback;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
+  const { requiresAuth = true, headers, ...rest } = options;
+  const session = getStoredSession();
+  const requestHeaders = new Headers(headers);
+
+  if (!requestHeaders.has("Content-Type") && rest.body) {
+    requestHeaders.set("Content-Type", "application/json");
+  }
+
+  if (requiresAuth && session?.token) {
+    requestHeaders.set("Authorization", `Bearer ${session.token}`);
+  }
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: requestHeaders
+    });
+  } catch {
+    throw new ApiError("Nao foi possivel conectar ao BillingFlow agora. Tente novamente em instantes.", 0);
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearSession();
+    }
+
+    throw new ApiError(await parseErrorMessage(response), response.status);
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return (await response.json()) as T;
+  }
+
+  const text = await response.text();
+
+  if (!text.trim()) {
+    return null as T;
+  }
+
+  return text as T;
+}
+
+export const authService = {
+  login(payload: LoginPayload) {
+    return apiRequest<AuthSession>("/api/auth/login", {
+      method: "POST",
+      requiresAuth: false,
+      body: JSON.stringify(payload)
+    });
+  }
+};
+
+export const dashboardService = {
+  getSummary() {
+    return apiRequest<DashboardSummary>("/api/dashboard/summary");
+  }
+};
