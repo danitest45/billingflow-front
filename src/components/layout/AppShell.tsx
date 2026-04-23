@@ -1,5 +1,6 @@
 import { useState, type ReactNode, type SVGProps } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { branding } from "../../config/branding";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../common/Button";
 
@@ -45,6 +46,15 @@ function SubscriptionIcon(props: IconProps) {
   );
 }
 
+function MessageIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M21 12a8 8 0 0 1-8 8H7l-4 2 1.5-4A8 8 0 1 1 21 12z" />
+      <path d="M8 10h8M8 14h5" />
+    </svg>
+  );
+}
+
 function MenuIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -57,6 +67,7 @@ const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: DashboardIcon },
   { to: "/clients", label: "Clientes", icon: ClientsIcon },
   { to: "/invoices", label: "Cobrancas", icon: InvoiceIcon },
+  { to: "/message-template", label: "Mensagem", icon: MessageIcon },
   { to: "/subscription", label: "Assinatura", icon: SubscriptionIcon }
 ];
 
@@ -71,11 +82,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <div className="rounded-[2rem] border border-white/10 bg-white/10 p-5 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-emerald-400 text-lg font-extrabold text-white shadow-lg shadow-primary-950/20">
-              BF
+              {branding.shortName}
             </div>
             <div>
-              <p className="text-lg font-extrabold text-white">BillingFlow</p>
-              <p className="text-sm text-slate-300">Cobrancas com visao de negocio</p>
+              <p className="text-lg font-extrabold text-white">{branding.productName}</p>
+              <p className="text-sm text-slate-300">{branding.productTagline}</p>
             </div>
           </div>
         </div>
@@ -149,7 +160,7 @@ export function AppShell({ children }: AppShellProps) {
         <header className="sticky top-0 z-20 border-b border-white/40 bg-white/70 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/70">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-700 dark:text-primary-300">SaaS Financeiro</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-700 dark:text-primary-300">Controle financeiro</p>
               <h1 className="text-lg font-bold text-slate-950 dark:text-white">Gestao de clientes e recorrencia</h1>
             </div>
 

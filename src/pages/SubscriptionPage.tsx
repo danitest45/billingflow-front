@@ -5,6 +5,7 @@ import { Button } from "../components/common/Button";
 import { Card } from "../components/common/Card";
 import { PageHeader } from "../components/common/PageHeader";
 import { SubscriptionOverviewCard } from "../components/subscription/SubscriptionOverviewCard";
+import { branding } from "../config/branding";
 import { useCustomerPortal } from "../hooks/useCustomerPortal";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useToast } from "../hooks/useToast";
@@ -48,7 +49,7 @@ export function SubscriptionPage() {
     <div className="space-y-8">
       <PageHeader
         title="Assinatura"
-        description="Centralize o plano atual, acompanhe limites da conta e tenha um caminho claro para evoluir seu BillingFlow."
+        description={`Centralize o plano atual, acompanhe limites da conta e tenha um caminho claro para evoluir seu ${branding.productName}.`}
       />
 
       {errorMessage ? (
@@ -97,17 +98,6 @@ export function SubscriptionPage() {
           </Button>
         }
       />
-
-      <Card>
-        <div className="space-y-3">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-300">Proximos passos</p>
-          <h2 className="text-xl font-bold text-slate-950 dark:text-white">Espaco preparado para gestao futura</h2>
-          <p className="text-sm leading-6 text-slate-500 dark:text-slate-300">
-            Esta area fica pronta para receber cancelamento, troca de plano e integracao com Stripe Customer Portal
-            sem mudar a estrutura principal do produto.
-          </p>
-        </div>
-      </Card>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Input } from "../components/common/Input";
 import { Modal } from "../components/common/Modal";
 import { PageHeader } from "../components/common/PageHeader";
 import { PaginationControls } from "../components/common/PaginationControls";
+import { branding } from "../config/branding";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useToast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/api";
@@ -143,7 +144,7 @@ export function ClientsPage() {
       showToast({
         tone: "error",
         title: "Assinatura inativa",
-        message: "Sua assinatura esta inativa. Faca upgrade para continuar usando o BillingFlow."
+        message: `Sua assinatura esta inativa. Faca upgrade para continuar usando o ${branding.productName}.`
       });
       return;
     }

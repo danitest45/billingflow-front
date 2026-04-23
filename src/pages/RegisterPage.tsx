@@ -7,26 +7,68 @@ import { useAuth } from "../hooks/useAuth";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { getErrorMessage } from "../services/api";
 
-export function LoginPage() {
-  usePageTitle("Login");
+type RegisterFormErrors = {
+  name?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+};
+
+export function RegisterPage() {
+  usePageTitle("Criar conta");
 
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { register } = useAuth();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<RegisterFormErrors>({});
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function validateForm() {
+    const nextErrors: RegisterFormErrors = {};
+
+    if (!name.trim()) {
+      nextErrors.name = "Informe seu nome.";
+    }
+
+    if (!email.trim()) {
+      nextErrors.email = "Informe seu e-mail.";
+    }
+
+    if (password.length < 6) {
+      nextErrors.password = "A senha deve ter pelo menos 6 caracteres.";
+    }
+
+    if (password !== confirmPassword) {
+      nextErrors.confirmPassword = "As senhas precisam ser iguais.";
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setErrorMessage("");
+
+    if (!validateForm()) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await login({ email, password });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        password
+      });
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Nao foi possivel realizar o login agora."));
+      setErrorMessage(getErrorMessage(error, "Nao foi possivel criar sua conta agora."));
     } finally {
       setIsSubmitting(false);
     }
@@ -51,18 +93,18 @@ export function LoginPage() {
           </span>
           <div className="space-y-5">
             <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-              Suas cobrancas organizadas em um so lugar.
+              Comece a organizar suas cobrancas em poucos minutos.
             </h1>
             <p className="max-w-xl text-base leading-7 text-slate-300">
-              Acesse sua conta para acompanhar clientes, pagamentos, vencimentos e atrasos com mais clareza.
+              Crie sua conta para controlar clientes, vencimentos e pagamentos sem depender de planilhas soltas.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
-              { value: "Menos", label: "controle manual no dia a dia" },
-              { value: "Mais", label: "clareza sobre pagamentos" },
-              { value: "Tudo", label: "em uma rotina organizada" }
+              { value: "Gratis", label: "para comecar com calma" },
+              { value: "Simples", label: "sem complicar sua rotina" },
+              { value: "Claro", label: "para saber quem pagou" }
             ].map((item) => (
               <div
                 key={item.label}
@@ -77,46 +119,64 @@ export function LoginPage() {
 
         <div className="glass-panel mx-auto w-full max-w-md p-8">
           <div className="mb-8 space-y-2">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Acesso seguro</p>
-            <h2 className="text-3xl font-extrabold text-slate-950 dark:text-white">Entrar na plataforma</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-300">Use suas credenciais para acessar clientes e cobrancas.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-primary-700">Nova conta</p>
+            <h2 className="text-3xl font-extrabold text-slate-950">Criar conta</h2>
+            <p className="text-sm text-slate-500">Preencha seus dados para entrar no {branding.productName}.</p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
+            <Input
+              label="Nome"
+              placeholder="Seu nome"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              error={errors.name}
+              required
+            />
             <Input
               label="E-mail"
               type="email"
               placeholder="voce@billingflow.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              error={errors.email}
               required
             />
             <Input
               label="Senha"
               type="password"
-              placeholder="Digite sua senha"
+              placeholder="Minimo de 6 caracteres"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
+              error={errors.password}
+              required
+            />
+            <Input
+              label="Confirmar senha"
+              type="password"
+              placeholder="Repita sua senha"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              error={errors.confirmPassword}
               required
             />
 
             {errorMessage ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {errorMessage}
               </div>
             ) : null}
 
             <Button type="submit" fullWidth loading={isSubmitting}>
-              Entrar
+              Criar conta
             </Button>
 
             <p className="text-center text-sm text-slate-500">
-              Nao tem conta?{" "}
-              <Link className="font-semibold text-primary-700 hover:text-primary-800" to="/register">
-                Criar conta
+              Ja tem conta?{" "}
+              <Link className="font-semibold text-primary-700 hover:text-primary-800" to="/login">
+                Entrar
               </Link>
             </p>
-
           </form>
         </div>
       </div>

@@ -1,12 +1,13 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { authService, clearSession, getStoredSession, saveSession } from "../services/api";
-import type { AuthSession, LoginPayload } from "../types/domain";
+import type { AuthSession, LoginPayload, RegisterPayload } from "../types/domain";
 
 type AuthContextValue = {
   session: AuthSession | null;
   isAuthenticated: boolean;
   isBootstrapping: boolean;
   login: (payload: LoginPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
 };
 
@@ -37,6 +38,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isBootstrapping,
       async login(payload) {
         const response = await authService.login(payload);
+        saveSession(response);
+        setSession(response);
+      },
+      async register(payload) {
+        const response = await authService.register(payload);
         saveSession(response);
         setSession(response);
       },

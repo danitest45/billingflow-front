@@ -15,6 +15,12 @@ export type LoginPayload = {
   password: string;
 };
 
+export type RegisterPayload = {
+  name: string;
+  email: string;
+  password: string;
+};
+
 export type Client = {
   id: string;
   name: string;
@@ -80,4 +86,14 @@ export type SubscriptionUpgradePlanType = 2 | 3 | 4;
 
 export type BillingRedirectSessionResponse = {
   url: string;
+};
+
+export type MessageTemplate = {
+  chargeTemplate: string;
+};
+
+export type WhatsAppPreview = {
+  phone: string;
+  message: string;
+  whatsAppUrl: string;
 };

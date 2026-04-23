@@ -162,6 +162,16 @@ export function isSubscriptionCurrent(status?: SubscriptionStatus | string | nul
   return normalized === "active" || normalized === "trialing";
 }
 
+export function isTrialPlan(plan?: SubscriptionPlan | string | null) {
+  const normalized = String(plan ?? "").trim().toLowerCase();
+  return normalized === "trial";
+}
+
+export function canUseWhatsApp(plan?: SubscriptionPlan | string | null) {
+  const normalized = String(plan ?? "").trim().toLowerCase();
+  return normalized === "starter" || normalized === "pro" || normalized === "agency";
+}
+
 export function getSubscriptionStatusTone(status?: SubscriptionStatus | string | null) {
   const normalized = String(status ?? "").trim().toLowerCase();
 

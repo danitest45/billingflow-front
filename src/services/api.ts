@@ -1,4 +1,5 @@
-import type { AuthSession, DashboardSummary, LoginPayload } from "../types/domain";
+import { branding } from "../config/branding";
+import type { AuthSession, DashboardSummary, LoginPayload, RegisterPayload } from "../types/domain";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "https://localhost:44323";
 const STORAGE_KEY = "billingflow:session";
@@ -171,7 +172,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       headers: requestHeaders
     });
   } catch {
-    throw new ApiError("Nao foi possivel conectar ao BillingFlow agora. Tente novamente em instantes.", 0);
+    throw new ApiError(`Nao foi possivel conectar ao ${branding.productName} agora. Tente novamente em instantes.`, 0);
   }
 
   if (!response.ok) {
@@ -204,6 +205,13 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
 export const authService = {
   login(payload: LoginPayload) {
     return apiRequest<AuthSession>("/api/auth/login", {
+      method: "POST",
+      requiresAuth: false,
+      body: JSON.stringify(payload)
+    });
+  },
+  register(payload: RegisterPayload) {
+    return apiRequest<AuthSession>("/api/auth/register", {
       method: "POST",
       requiresAuth: false,
       body: JSON.stringify(payload)

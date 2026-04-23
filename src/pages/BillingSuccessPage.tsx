@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/common/Button";
 import { Card } from "../components/common/Card";
 import { PageHeader } from "../components/common/PageHeader";
+import { branding } from "../config/branding";
 import { usePageTitle } from "../hooks/usePageTitle";
 
 export function BillingSuccessPage() {
@@ -20,7 +21,7 @@ export function BillingSuccessPage() {
         <div className="space-y-6">
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50/95 p-5 dark:border-emerald-500/30 dark:bg-emerald-500/10">
             <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-              Assim que o BillingFlow receber a confirmacao do pagamento, seu plano e seus limites serao atualizados.
+              Assim que o {branding.productName} receber a confirmacao do pagamento, seu plano e seus limites serao atualizados.
             </p>
           </div>
 
