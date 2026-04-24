@@ -167,7 +167,7 @@ export function RegisterPage() {
               </div>
             ) : null}
 
-            <Button type="submit" fullWidth loading={isSubmitting}>
+            <Button type="submit" fullWidth loading={isSubmitting} loadingText="Criando conta...">
               Criar conta
             </Button>
 

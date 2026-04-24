@@ -26,7 +26,9 @@ export function LoginPage() {
       await login({ email, password });
       navigate("/dashboard", { replace: true });
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Nao foi possivel realizar o login agora."));
+      setErrorMessage(
+        getErrorMessage(error, "Nao conseguimos entrar com esses dados. Confira seu e-mail e senha e tente novamente.")
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -106,7 +108,7 @@ export function LoginPage() {
               </div>
             ) : null}
 
-            <Button type="submit" fullWidth loading={isSubmitting}>
+            <Button type="submit" fullWidth loading={isSubmitting} loadingText="Entrando...">
               Entrar
             </Button>
 

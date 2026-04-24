@@ -11,29 +11,36 @@ const painPoints = [
 
 const features = [
   {
-    title: "Clientes organizados",
+    title: "Gestao de clientes",
     description: "Guarde dados, valores mensais e vencimentos de cada cliente em um unico lugar."
   },
   {
-    title: "Cobrancas no controle",
+    title: "Controle de cobrancas",
     description: "Gere cobrancas quando precisar e acompanhe o que ainda esta em aberto."
   },
   {
-    title: "Resumo financeiro claro",
+    title: "Dashboard financeiro",
     description: "Veja quanto voce tem a receber, quanto ja recebeu e o que esta atrasado."
   },
   {
-    title: "Menos tarefas repetidas",
-    description: "Reduza controles manuais e ganhe mais previsibilidade na rotina de cobrancas."
+    title: "Cobranca via WhatsApp",
+    description: "Abra uma mensagem pronta e cobre seus clientes com mais rapidez, sem escrever tudo do zero."
   },
   {
-    title: "Atrasos visiveis",
+    title: "Mensagens personalizadas",
+    description: "Nome, valor e vencimento entram na mensagem para voce cobrar com contexto e praticidade."
+  },
+  {
+    title: "Controle de inadimplencia",
     description: "Identifique rapidamente quem ainda nao pagou e evite perder dinheiro por esquecimento."
-  },
-  {
-    title: "Cresce com seu negocio",
-    description: "Comece pequeno e aumente seu limite de clientes conforme sua carteira crescer."
   }
+];
+
+const whatsappBenefits = [
+  "Mensagens personalizadas automaticamente",
+  "Nome, valor e vencimento preenchidos na mensagem",
+  "Envio rapido pelo WhatsApp",
+  "Mais praticidade para cobrar sem constrangimento"
 ];
 
 const steps = [
@@ -42,12 +49,12 @@ const steps = [
     description: "Informe nome, contato, valor mensal e dia de vencimento de cada cliente."
   },
   {
-    title: "Acompanhe pagamentos",
+    title: "Acompanhe vencimentos e pagamentos",
     description: "Veja o que esta pago, pendente ou atrasado sem procurar em planilhas."
   },
   {
-    title: "Mantenha a rotina em ordem",
-    description: `Use o ${branding.productName} como seu painel diario para nao deixar cobrancas passarem.`
+    title: "Envie cobrancas prontas pelo WhatsApp",
+    description: "Abra uma mensagem personalizada e envie a cobranca em poucos segundos."
   }
 ];
 
@@ -55,26 +62,26 @@ const plans = [
   {
     name: "Trial",
     price: "Gratis",
-    description: "Experimente antes de escolher um plano.",
+    description: "Teste o sistema e organize seus primeiros clientes.",
     clients: "para comecar"
   },
   {
     name: "Starter",
     price: "R$29,90",
-    description: "Ideal para quem esta organizando os primeiros clientes.",
+    description: "Inclui cobranca via WhatsApp para acelerar sua rotina.",
     clients: "ate 10 clientes"
   },
   {
     name: "Pro",
     price: "R$59,90",
-    description: "Para freelancers e pequenas equipes que ja cobram todo mes.",
+    description: "Inclui mensagens personalizadas e mais clientes para crescer com controle.",
     clients: "ate 30 clientes",
     featured: true
   },
   {
     name: "Agency",
     price: "R$99,90",
-    description: "Para agencias com mais clientes e rotina de cobranca ativa.",
+    description: "Ideal para operacoes com maior volume e rotina de cobranca mais intensa.",
     clients: "ate 100 clientes"
   }
 ];
@@ -134,6 +141,9 @@ export function LandingPage() {
             <a className="transition hover:text-white" href="#recursos">
               Recursos
             </a>
+            <a className="transition hover:text-white" href="#whatsapp">
+              WhatsApp
+            </a>
             <a className="transition hover:text-white" href="#como-funciona">
               Como funciona
             </a>
@@ -162,11 +172,10 @@ export function LandingPage() {
 
               <div className="space-y-6">
                 <h1 className="max-w-4xl text-5xl font-extrabold tracking-tight text-white sm:text-6xl">
-                  {branding.productName}: controle suas cobrancas sem planilha e sem dor de cabeca.
+                  Pare de esquecer cobrancas e comece a receber no dia certo.
                 </h1>
                 <p className="max-w-2xl text-lg leading-8 text-slate-300">
-                  {branding.tagline}. Organize clientes, acompanhe pagamentos, lembre vencimentos e mantenha a rotina
-                  financeira mais previsivel.
+                  Gerencie clientes, acompanhe pagamentos e envie cobrancas prontas pelo WhatsApp em poucos segundos.
                 </p>
               </div>
 
@@ -179,9 +188,9 @@ export function LandingPage() {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
-                  "Resumo do dinheiro a receber",
+                  "Cobranca via WhatsApp",
                   "Clientes sempre organizados",
-                  "Menos esquecimentos"
+                  "Menos atrasos no recebimento"
                 ].map((item) => (
                   <div key={item} className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-slate-100 shadow-sm backdrop-blur-md">
                     {item}
@@ -280,6 +289,79 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section id="whatsapp" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
+          <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+            <div className="space-y-4">
+              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-emerald-200">WhatsApp</p>
+              <h2 className="max-w-2xl text-4xl font-extrabold tracking-tight text-white">
+                Cobre seus clientes pelo WhatsApp com 1 clique
+              </h2>
+              <p className="max-w-2xl text-base leading-7 text-slate-300">
+                Sem perder tempo escrevendo mensagens do zero. O {branding.productName} monta uma cobranca personalizada
+                com nome, valor e vencimento para voce enviar rapidamente.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {whatsappBenefits.map((benefit) => (
+                  <div key={benefit} className="flex gap-3 rounded-[1.5rem] border border-white/10 bg-white/10 p-4 backdrop-blur-md">
+                    <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-200">
+                      <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="m4.5 10.5 3.3 3.3 7.7-8.1" />
+                      </svg>
+                    </span>
+                    <p className="text-sm font-medium text-slate-100">{benefit}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-white/10 bg-white/10 p-5 shadow-soft backdrop-blur-xl">
+              <div className="rounded-[1.75rem] bg-slate-950 p-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-sm font-extrabold text-white">
+                      WA
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">Mensagem pronta</p>
+                      <p className="text-xs text-slate-400">Envie sem sair da rotina</p>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-200">
+                    Personalizada
+                  </span>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="flex justify-end">
+                    <div className="max-w-[88%] rounded-[1.6rem] rounded-br-md bg-emerald-500 px-4 py-3 text-sm leading-6 text-white shadow-lg shadow-emerald-500/20">
+                      Ola Joao, tudo bem?
+                      <br />
+                      <br />
+                      Estou entrando em contato sobre a cobranca de R$ 500,00, com vencimento em 20/04/2026.
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {[
+                        ["Nome", "Joao"],
+                        ["Valor", "R$ 500,00"],
+                        ["Vencimento", "20/04/2026"]
+                      ].map(([label, value]) => (
+                        <div key={label} className="rounded-2xl bg-white/5 px-4 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{label}</p>
+                          <p className="mt-2 text-sm font-semibold text-white">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section id="como-funciona" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
           <div className="rounded-[2.5rem] border border-white/10 bg-white/10 p-8 shadow-soft backdrop-blur-xl">
             <div className="max-w-2xl">
@@ -305,7 +387,7 @@ export function LandingPage() {
           <div className="grid gap-6 lg:grid-cols-3">
             {[
               ["Clientes", "Clientes, valores e vencimentos sempre organizados."],
-              ["Cobrancas", "Status simples para saber quem pagou, quem esta pendente e quem atrasou."],
+              ["WhatsApp", "Mensagens prontas para cobrar com nome, valor e vencimento preenchidos automaticamente."],
               ["Planos", "Limite de clientes que acompanha o tamanho do seu negocio."]
             ].map(([title, description]) => (
               <div key={title} className="rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-sm backdrop-blur-md">
@@ -328,6 +410,9 @@ export function LandingPage() {
             <div className="max-w-2xl">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary-200">Planos</p>
               <h2 className="mt-3 text-4xl font-extrabold tracking-tight text-white">Comece gratis e escolha um plano quando fizer sentido.</h2>
+              <p className="mt-3 text-sm leading-6 text-slate-300">
+                A cobranca via WhatsApp fica disponivel a partir do plano Starter.
+              </p>
             </div>
             <PublicLinkButton to="/register" variant="secondary">
               Criar conta gratis
@@ -362,10 +447,10 @@ export function LandingPage() {
           <div className="rounded-[2.5rem] bg-slate-950 p-8 text-center shadow-soft sm:p-12">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-primary-200">Pronto para comecar?</p>
             <h2 className="mx-auto mt-4 max-w-3xl text-4xl font-extrabold tracking-tight text-white">
-              Comece hoje a organizar suas cobrancas.
+              Crie sua conta gratis e comece a cobrar com mais clareza.
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-300">
-              Crie sua conta gratis e veja seus clientes, vencimentos e pagamentos em um unico lugar.
+              Organize clientes, acompanhe pagamentos e envie cobrancas prontas pelo WhatsApp sem perder tempo.
             </p>
             <div className="mt-8">
               <PublicLinkButton to="/register">Criar conta gratis</PublicLinkButton>

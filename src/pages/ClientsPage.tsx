@@ -8,7 +8,9 @@ import { Input } from "../components/common/Input";
 import { Modal } from "../components/common/Modal";
 import { PageHeader } from "../components/common/PageHeader";
 import { PaginationControls } from "../components/common/PaginationControls";
+import { Select } from "../components/common/Select";
 import { branding } from "../config/branding";
+import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useToast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/api";
@@ -29,9 +31,18 @@ import {
   formatSubscriptionPlan,
   formatSubscriptionStatus
 } from "../utils/format";
+import { formatCurrencyBRL, formatPhone, parseCurrencyBRL, unmaskPhone } from "../utils/clientForm";
 
 type ClientModalMode = "create" | "edit";
 type ClientRowAction = "generate" | "delete";
+type ClientFormValues = {
+  name: string;
+  email: string;
+  phone: string;
+  monthlyAmount: string;
+  dueDay: string;
+};
+type ClientFormErrors = Partial<Record<keyof ClientFormValues, string>>;
 type ClientFilterForm = {
   search: string;
   dueDay: string;
@@ -41,12 +52,12 @@ type ClientFilterForm = {
 
 const DEFAULT_PAGE_SIZE = 10;
 
-const emptyForm: ClientPayload = {
+const emptyForm: ClientFormValues = {
   name: "",
   email: "",
   phone: "",
-  monthlyAmount: 0,
-  dueDay: 1
+  monthlyAmount: "",
+  dueDay: "1"
 };
 
 const emptyFilters: ClientFilterForm = {
@@ -73,11 +84,16 @@ function buildClientQuery(filters: ClientFilterForm): ClientListParams {
   };
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 export function ClientsPage() {
   usePageTitle("Clientes");
 
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { runWithFeedback } = useApiFeedback();
   const [listState, setListState] = useState<PaginatedResponse<Client>>(initialListState);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [filters, setFilters] = useState<ClientFilterForm>(emptyFilters);
@@ -85,7 +101,8 @@ export function ClientsPage() {
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE
   });
-  const [formData, setFormData] = useState<ClientPayload>(emptyForm);
+  const [formData, setFormData] = useState<ClientFormValues>(emptyForm);
+  const [formErrors, setFormErrors] = useState<ClientFormErrors>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,8 +150,14 @@ export function ClientsPage() {
     }));
   }
 
+  function updateFormField<K extends keyof ClientFormValues>(field: K, value: ClientFormValues[K]) {
+    setFormData((current) => ({ ...current, [field]: value }));
+    setFormErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
   function resetFormState() {
     setFormData(emptyForm);
+    setFormErrors({});
     setSelectedClient(null);
     setModalMode("create");
   }
@@ -159,6 +182,7 @@ export function ClientsPage() {
     }
 
     resetFormState();
+    setErrorMessage("");
     setIsModalOpen(true);
   }
 
@@ -168,10 +192,12 @@ export function ClientsPage() {
     setFormData({
       name: client.name,
       email: client.email,
-      phone: client.phone,
-      monthlyAmount: client.monthlyAmount,
-      dueDay: client.dueDay
+      phone: formatPhone(client.phone),
+      monthlyAmount: formatCurrencyBRL(client.monthlyAmount),
+      dueDay: String(client.dueDay)
     });
+    setFormErrors({});
+    setErrorMessage("");
     setIsModalOpen(true);
   }
 
@@ -207,29 +233,82 @@ export function ClientsPage() {
 
   async function handleSaveClient(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setIsSaving(true);
     setErrorMessage("");
+    const nextErrors: ClientFormErrors = {};
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const parsedPhone = unmaskPhone(formData.phone);
+    const parsedMonthlyAmount = parseCurrencyBRL(formData.monthlyAmount);
+    const parsedDueDay = Number(formData.dueDay);
+
+    if (!trimmedName) {
+      nextErrors.name = "Informe o nome do cliente.";
+    }
+
+    if (!trimmedEmail) {
+      nextErrors.email = "Informe um e-mail.";
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = "Informe um e-mail valido.";
+    }
+
+    if (!parsedPhone) {
+      nextErrors.phone = "Informe o telefone do cliente.";
+    } else if (parsedPhone.length !== 11) {
+      nextErrors.phone = "Informe um telefone com DDD e numero completo.";
+    }
+
+    if (parsedMonthlyAmount <= 0) {
+      nextErrors.monthlyAmount = "Informe um valor mensal maior que zero.";
+    }
+
+    if (!Number.isInteger(parsedDueDay) || parsedDueDay < 1 || parsedDueDay > 31) {
+      nextErrors.dueDay = "Escolha um dia de vencimento entre 1 e 31.";
+    }
+
+    setFormErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
 
     const payload: ClientPayload = {
-      ...formData,
-      monthlyAmount: Number(formData.monthlyAmount),
-      dueDay: Number(formData.dueDay)
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: parsedPhone,
+      monthlyAmount: parsedMonthlyAmount,
+      dueDay: parsedDueDay
     };
+
+    setIsSaving(true);
 
     try {
       if (modalMode === "edit" && selectedClient) {
-        await clientsService.update(selectedClient.id, payload);
-        showToast({
-          tone: "success",
-          title: "Cliente atualizado",
-          message: `${payload.name} foi atualizado com sucesso.`
+        await runWithFeedback({
+          action: () => clientsService.update(selectedClient.id, payload),
+          successTitle: "Cliente atualizado",
+          successMessage: `${payload.name} foi atualizado com sucesso.`,
+          errorTitle: "Erro ao salvar cliente",
+          errorFallbackMessage: "Nao foi possivel salvar o cliente agora.",
+          onError: async (message) => {
+            if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+              await refreshSubscription();
+            }
+            setErrorMessage(message);
+          }
         });
       } else {
-        await clientsService.create(payload);
-        showToast({
-          tone: "success",
-          title: "Cliente criado",
-          message: `${payload.name} entrou para a sua base de cobranca.`
+        await runWithFeedback({
+          action: () => clientsService.create(payload),
+          successTitle: "Cliente criado com sucesso",
+          successMessage: `${payload.name} entrou para a sua base de cobranca.`,
+          errorTitle: "Erro ao salvar cliente",
+          errorFallbackMessage: "Nao foi possivel salvar o cliente agora.",
+          onError: async (message) => {
+            if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+              await refreshSubscription();
+            }
+            setErrorMessage(message);
+          }
         });
       }
 
@@ -237,17 +316,8 @@ export function ClientsPage() {
       resetFormState();
       await refreshSubscription();
       refreshCurrentPage();
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel salvar o cliente agora.");
-      if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
-        await refreshSubscription();
-      }
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao salvar cliente",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       setIsSaving(false);
     }
@@ -267,25 +337,23 @@ export function ClientsPage() {
     setErrorMessage("");
 
     try {
-      await invoicesService.generate(client.id);
-      showToast({
-        tone: "success",
-        title: "Cobranca gerada",
-        message: `A cobranca de ${client.name} foi criada com sucesso.`,
-        actionLabel: "Ver cobrancas",
-        onAction: () => navigate("/invoices")
+      await runWithFeedback({
+        action: () => invoicesService.generate(client.id),
+        successTitle: "Cobranca gerada",
+        successMessage: `A cobranca de ${client.name} foi criada com sucesso.`,
+        successActionLabel: "Ver cobrancas",
+        onSuccessAction: () => navigate("/invoices"),
+        errorTitle: "Erro ao gerar cobranca",
+        errorFallbackMessage: "Nao foi possivel gerar a cobranca agora.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+            await refreshSubscription();
+          }
+          setErrorMessage(message);
+        }
       });
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel gerar a cobranca agora.");
-      if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
-        await refreshSubscription();
-      }
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao gerar cobranca",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       updateRowAction(client.id);
     }
@@ -301,13 +369,17 @@ export function ClientsPage() {
     setErrorMessage("");
 
     try {
-      await clientsService.remove(target.id);
-      setDeleteTarget(null);
-      showToast({
-        tone: "success",
-        title: "Cliente excluido",
-        message: `${target.name} foi removido da sua base.`
+      await runWithFeedback({
+        action: () => clientsService.remove(target.id),
+        successTitle: "Cliente excluido",
+        successMessage: `${target.name} foi removido da sua base.`,
+        errorTitle: "Erro ao excluir cliente",
+        errorFallbackMessage: "Nao foi possivel excluir o cliente agora.",
+        onError: async (message) => {
+          setErrorMessage(message);
+        }
       });
+      setDeleteTarget(null);
 
       if (listState.items.length === 1 && listState.page > 1) {
         await refreshSubscription();
@@ -319,14 +391,8 @@ export function ClientsPage() {
         await refreshSubscription();
         refreshCurrentPage();
       }
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel excluir o cliente agora.");
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao excluir cliente",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       updateRowAction(target.id);
     }
@@ -536,7 +602,7 @@ export function ClientsPage() {
                       <tr key={client.id} className="text-sm text-slate-700 dark:text-slate-300">
                         <td className="px-6 py-4 font-semibold text-slate-950 dark:text-white">{client.name}</td>
                         <td className="px-6 py-4">{client.email}</td>
-                        <td className="px-6 py-4">{client.phone}</td>
+                        <td className="px-6 py-4">{formatPhone(client.phone)}</td>
                         <td className="px-6 py-4">{formatCurrency(client.monthlyAmount)}</td>
                         <td className="px-6 py-4">Todo dia {client.dueDay}</td>
                         <td className="px-6 py-4">
@@ -554,6 +620,7 @@ export function ClientsPage() {
                               variant="secondary"
                               disabled={rowBusy || isSubscriptionBlocked}
                               loading={rowAction === "generate"}
+                              loadingText="Gerando..."
                               onClick={() => handleGenerateInvoice(client)}
                             >
                               Gerar cobranca
@@ -563,6 +630,7 @@ export function ClientsPage() {
                               variant="danger"
                               disabled={rowBusy}
                               loading={rowAction === "delete"}
+                              loadingText="Excluindo..."
                               onClick={() => setDeleteTarget(client)}
                             >
                               Excluir
@@ -600,8 +668,9 @@ export function ClientsPage() {
             <Input
               label="Nome"
               value={formData.name}
-              onChange={(event) => setFormData((current) => ({ ...current, name: event.target.value }))}
+              onChange={(event) => updateFormField("name", event.target.value)}
               placeholder="Ex.: Estudio Aurora"
+              error={formErrors.name}
               required
             />
           </div>
@@ -609,37 +678,47 @@ export function ClientsPage() {
             label="E-mail"
             type="email"
             value={formData.email}
-            onChange={(event) => setFormData((current) => ({ ...current, email: event.target.value }))}
+            onChange={(event) => updateFormField("email", event.target.value)}
             placeholder="financeiro@cliente.com"
+            error={formErrors.email}
             required
           />
           <Input
             label="Telefone"
             value={formData.phone}
-            onChange={(event) => setFormData((current) => ({ ...current, phone: event.target.value }))}
+            onChange={(event) => updateFormField("phone", formatPhone(event.target.value))}
             placeholder="(11) 99999-9999"
+            inputMode="numeric"
+            maxLength={15}
+            error={formErrors.phone}
             required
           />
           <Input
             label="Valor mensal"
-            type="number"
-            min="0"
-            step="0.01"
             value={formData.monthlyAmount}
-            onChange={(event) =>
-              setFormData((current) => ({ ...current, monthlyAmount: Number(event.target.value) }))
-            }
+            onChange={(event) => updateFormField("monthlyAmount", formatCurrencyBRL(event.target.value))}
+            placeholder="R$ 0,00"
+            inputMode="numeric"
+            error={formErrors.monthlyAmount}
             required
           />
-          <Input
+          <Select
             label="Dia do vencimento"
-            type="number"
-            min="1"
-            max="31"
             value={formData.dueDay}
-            onChange={(event) => setFormData((current) => ({ ...current, dueDay: Number(event.target.value) }))}
+            onChange={(event) => updateFormField("dueDay", event.target.value)}
+            error={formErrors.dueDay}
             required
-          />
+          >
+            {Array.from({ length: 31 }, (_, index) => {
+              const day = String(index + 1);
+
+              return (
+                <option key={day} value={day}>
+                  Dia {day}
+                </option>
+              );
+            })}
+          </Select>
 
           <div className="flex justify-end gap-3 md:col-span-2">
             <Button
@@ -652,7 +731,11 @@ export function ClientsPage() {
             >
               Cancelar
             </Button>
-            <Button type="submit" loading={isSaving}>
+            <Button
+              type="submit"
+              loading={isSaving}
+              loadingText={modalMode === "edit" ? "Salvando..." : "Criando..."}
+            >
               {modalSubmitLabel}
             </Button>
           </div>
@@ -679,6 +762,7 @@ export function ClientsPage() {
               type="button"
               variant="danger"
               loading={deleteTarget ? rowActionState[deleteTarget.id] === "delete" : false}
+              loadingText="Excluindo..."
               onClick={handleDeleteClient}
             >
               Confirmar exclusao

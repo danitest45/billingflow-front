@@ -92,6 +92,7 @@ export function SubscriptionPage() {
           <Button
             variant="ghost"
             loading={isOpeningPortal}
+            loadingText="Abrindo..."
             onClick={openCustomerPortal}
           >
             Gerenciar assinatura

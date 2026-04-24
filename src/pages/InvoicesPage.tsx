@@ -10,6 +10,7 @@ import { PaginationControls } from "../components/common/PaginationControls";
 import { Select } from "../components/common/Select";
 import { StatusBadge } from "../components/common/StatusBadge";
 import { WhatsAppUpgradeModal } from "../components/subscription/WhatsAppUpgradeModal";
+import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useToast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/api";
@@ -72,6 +73,7 @@ export function InvoicesPage() {
 
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { runWithFeedback } = useApiFeedback();
   const [listState, setListState] = useState<PaginatedResponse<Invoice>>(initialListState);
   const [filters, setFilters] = useState<InvoiceFilterForm>(emptyFilters);
   const [query, setQuery] = useState<InvoiceListParams>({
@@ -171,25 +173,22 @@ export function InvoicesPage() {
     setErrorMessage("");
 
     try {
-      await invoicesService.markAsPaid(id);
-      showToast({
-        tone: "success",
-        title: "Cobranca atualizada",
-        message: "A cobranca foi marcada como paga com sucesso."
+      await runWithFeedback({
+        action: () => invoicesService.markAsPaid(id),
+        successTitle: "Pagamento marcado",
+        successMessage: "A cobranca foi marcada como paga com sucesso.",
+        errorTitle: "Erro ao marcar pagamento",
+        errorFallbackMessage: "Nao foi possivel marcar a cobranca como paga agora.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura")) {
+            await refreshSubscription();
+          }
+          setErrorMessage(message);
+        }
       });
-
       refreshCurrentPage();
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel marcar a cobranca como paga agora.");
-      if (message.toLowerCase().includes("assinatura")) {
-        await refreshSubscription();
-      }
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao atualizar cobranca",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       updateRowAction(id);
     }
@@ -214,29 +213,30 @@ export function InvoicesPage() {
     setErrorMessage("");
 
     try {
-      const preview = await messageTemplateService.getWhatsAppPreview(invoice.id);
+      const preview = await runWithFeedback({
+        action: async () => {
+          const response = await messageTemplateService.getWhatsAppPreview(invoice.id);
 
-      if (!preview.whatsAppUrl) {
-        throw new Error("Nao foi possivel gerar o link do WhatsApp agora.");
-      }
+          if (!response.whatsAppUrl) {
+            throw new Error("Nao foi possivel gerar o link do WhatsApp agora.");
+          }
 
+          return response;
+        },
+        successTitle: "Mensagem aberta no WhatsApp",
+        successMessage: `A cobranca de ${getInvoiceClient(invoice)} esta pronta para envio.`,
+        errorTitle: "Erro ao abrir WhatsApp",
+        errorFallbackMessage: "Nao foi possivel preparar a cobranca por WhatsApp agora.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura")) {
+            await refreshSubscription();
+          }
+          setErrorMessage(message);
+        }
+      });
       window.open(preview.whatsAppUrl, "_blank", "noopener,noreferrer");
-      showToast({
-        tone: "success",
-        title: "WhatsApp pronto",
-        message: `Abrimos a mensagem de cobranca para ${getInvoiceClient(invoice)}.`
-      });
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel preparar a cobranca por WhatsApp agora.");
-      if (message.toLowerCase().includes("assinatura")) {
-        await refreshSubscription();
-      }
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao abrir WhatsApp",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       updateRowAction(invoice.id);
     }
@@ -389,6 +389,7 @@ export function InvoicesPage() {
                               variant={isPaid ? "ghost" : "secondary"}
                               disabled={isPaid || isSubscriptionBlocked || rowBusy}
                               loading={rowAction === "pay"}
+                              loadingText="Processando..."
                               onClick={() => handleMarkAsPaid(invoice.id)}
                             >
                               {isPaid ? "Pago" : isSubscriptionBlocked ? "Indisponivel" : "Marcar como pago"}

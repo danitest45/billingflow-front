@@ -5,8 +5,8 @@ import { Card } from "../components/common/Card";
 import { PageHeader } from "../components/common/PageHeader";
 import { SubscriptionOverviewCard } from "../components/subscription/SubscriptionOverviewCard";
 import { branding } from "../config/branding";
+import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { useToast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/api";
 import { billingService } from "../services/billing";
 import { subscriptionService } from "../services/subscription";
@@ -88,7 +88,7 @@ function CheckIcon() {
 export function UpgradePage() {
   usePageTitle("Upgrade de plano");
 
-  const { showToast } = useToast();
+  const { runWithFeedback } = useApiFeedback();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeUpgrade, setActiveUpgrade] = useState<SubscriptionUpgradePlanType | null>(null);
@@ -117,26 +117,27 @@ export function UpgradePage() {
     setErrorMessage("");
 
     try {
-      const response = await billingService.createCheckoutSession(plan.planType);
+      const response = await runWithFeedback({
+        action: async () => {
+          const session = await billingService.createCheckoutSession(plan.planType);
 
-      if (!response.url) {
-        throw new Error("Nao foi possivel iniciar o checkout agora.");
-      }
+          if (!session.url) {
+            throw new Error("Nao foi possivel iniciar o checkout agora.");
+          }
 
-      showToast({
-        tone: "info",
-        title: "Redirecionando para o pagamento",
-        message: `Voce esta sendo levado para o checkout do plano ${plan.name}.`
+          return session;
+        },
+        successTitle: "Checkout iniciado",
+        successMessage: `Voce esta sendo levado para o pagamento do plano ${plan.name}.`,
+        errorTitle: "Erro ao iniciar pagamento",
+        errorFallbackMessage: "Nao foi possivel iniciar o checkout agora.",
+        onError: async (message) => {
+          setErrorMessage(message);
+        }
       });
       window.location.assign(response.url);
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel iniciar o checkout agora.");
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao iniciar pagamento",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       setActiveUpgrade(null);
     }
@@ -247,6 +248,7 @@ export function UpgradePage() {
                   className="mt-auto"
                   disabled={isCurrentPlan}
                   loading={activeUpgrade === plan.planType}
+                  loadingText="Processando..."
                   onClick={() => handleUpgrade(plan)}
                 >
                   {isCurrentPlan ? "Plano atual" : "Fazer upgrade"}

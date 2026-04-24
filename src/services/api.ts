@@ -81,7 +81,7 @@ function mapBusinessErrorMessage(message: string) {
     normalized.includes("usuario ou senha invalido") ||
     normalized.includes("usuario nao encontrado")
   ) {
-    return "Usuario ou senha invalidos.";
+    return "Nao encontramos uma conta com esse e-mail e senha. Confira os dados e tente novamente.";
   }
 
   return message;

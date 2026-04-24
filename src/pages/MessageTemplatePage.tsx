@@ -4,8 +4,8 @@ import { Button } from "../components/common/Button";
 import { Card } from "../components/common/Card";
 import { PageHeader } from "../components/common/PageHeader";
 import { whatsAppPremiumBenefits } from "../components/subscription/WhatsAppUpgradeModal";
+import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
-import { useToast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/api";
 import { messageTemplateService } from "../services/messageTemplate";
 import { subscriptionService } from "../services/subscription";
@@ -27,7 +27,7 @@ export function MessageTemplatePage() {
   usePageTitle("Mensagem de cobranca");
 
   const navigate = useNavigate();
-  const { showToast } = useToast();
+  const { runWithFeedback } = useApiFeedback();
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [chargeTemplate, setChargeTemplate] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -72,23 +72,22 @@ export function MessageTemplatePage() {
     setIsSaving(true);
 
     try {
-      await messageTemplateService.update({
-        chargeTemplate: chargeTemplate.trim()
+      await runWithFeedback({
+        action: () =>
+          messageTemplateService.update({
+            chargeTemplate: chargeTemplate.trim()
+          }),
+        successTitle: "Mensagem salva",
+        successMessage: "A mensagem de cobranca foi atualizada com sucesso.",
+        errorTitle: "Erro ao salvar mensagem",
+        errorFallbackMessage: "Nao foi possivel salvar a mensagem de cobranca agora.",
+        onError: async (message) => {
+          setErrorMessage(message);
+        }
       });
       setChargeTemplate(chargeTemplate.trim());
-      showToast({
-        tone: "success",
-        title: "Mensagem salva",
-        message: "A mensagem de cobranca foi atualizada com sucesso."
-      });
-    } catch (error) {
-      const message = getErrorMessage(error, "Nao foi possivel salvar a mensagem de cobranca agora.");
-      setErrorMessage(message);
-      showToast({
-        tone: "error",
-        title: "Falha ao salvar mensagem",
-        message
-      });
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
     } finally {
       setIsSaving(false);
     }
@@ -169,7 +168,7 @@ export function MessageTemplatePage() {
               <p className="text-sm text-slate-500 dark:text-slate-300">
                 Use as variaveis para personalizar cada cobranca automaticamente.
               </p>
-              <Button type="submit" loading={isSaving} disabled={isLoading}>
+              <Button type="submit" loading={isSaving} loadingText="Salvando..." disabled={isLoading}>
                 Salvar mensagem
               </Button>
             </div>

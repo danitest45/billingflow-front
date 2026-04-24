@@ -4,6 +4,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   fullWidth?: boolean;
   loading?: boolean;
+  loadingText?: string;
   size?: "md" | "sm";
 };
 
@@ -24,6 +25,7 @@ export function Button({
   variant = "primary",
   fullWidth = false,
   loading = false,
+  loadingText,
   size = "md",
   disabled,
   ...props
@@ -43,7 +45,7 @@ export function Button({
       {loading && (
         <span className={`h-4 w-4 animate-spin rounded-full border-2 ${spinnerClass}`} />
       )}
-      {children}
+      {loading && loadingText ? loadingText : children}
     </button>
   );
 }
