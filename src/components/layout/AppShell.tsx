@@ -55,6 +55,16 @@ function MessageIcon(props: IconProps) {
   );
 }
 
+function SupportIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.4 9.3a2.6 2.6 0 1 1 4.9 1.2c-.4.8-1.2 1.2-1.8 1.7-.5.3-.9.8-.9 1.5" />
+      <circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function MenuIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
@@ -68,6 +78,7 @@ const navigation = [
   { to: "/clients", label: "Clientes", icon: ClientsIcon },
   { to: "/invoices", label: "Cobrancas", icon: InvoiceIcon },
   { to: "/message-template", label: "Mensagem", icon: MessageIcon },
+  { to: "/support", label: "Suporte", icon: SupportIcon },
   { to: "/subscription", label: "Assinatura", icon: SubscriptionIcon }
 ];
 

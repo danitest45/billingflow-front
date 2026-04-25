@@ -34,6 +34,13 @@ export type ApiMessageResponse = {
   message: string;
 };
 
+export type SupportPayload = {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+};
+
 export type Client = {
   id: string;
   name: string;

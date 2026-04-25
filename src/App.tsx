@@ -15,6 +15,7 @@ import { MessageTemplatePage } from "./pages/MessageTemplatePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SubscriptionPage } from "./pages/SubscriptionPage";
+import { SupportPage } from "./pages/SupportPage";
 import { UpgradePage } from "./pages/UpgradePage";
 
 function ProtectedApp() {
@@ -77,6 +78,10 @@ export default function App() {
         <Route
           path="/reset-password"
           element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />}
+        />
+        <Route
+          path="/support"
+          element={isAuthenticated ? <AppShell><SupportPage /></AppShell> : <SupportPage />}
         />
         <Route path="/*" element={<ProtectedApp />} />
       </Routes>

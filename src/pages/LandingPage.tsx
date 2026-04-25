@@ -469,6 +469,9 @@ export function LandingPage() {
             <Link className="hover:text-white" to="/register">
               Criar conta
             </Link>
+            <Link className="hover:text-white" to="/support">
+              Suporte
+            </Link>
             <span>Termos</span>
             <span>Privacidade</span>
             <span>Contato</span>
