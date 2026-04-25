@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { branding } from "../../config/branding";
 import { useAuth } from "../../hooks/useAuth";
 import { Button } from "../common/Button";
+import { ThemeToggle } from "../common/ThemeToggle";
 
 type AppShellProps = {
   children: ReactNode;
@@ -175,13 +176,17 @@ export function AppShell({ children }: AppShellProps) {
               <h1 className="text-lg font-bold text-slate-950 dark:text-white">Gestao de clientes e recorrencia</h1>
             </div>
 
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 lg:hidden"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <MenuIcon className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <button
+                type="button"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 lg:hidden"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label="Abrir menu"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </header>
 
