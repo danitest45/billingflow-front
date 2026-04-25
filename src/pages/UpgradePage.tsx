@@ -11,7 +11,7 @@ import { getErrorMessage } from "../services/api";
 import { billingService } from "../services/billing";
 import { subscriptionService } from "../services/subscription";
 import type { SubscriptionInfo, SubscriptionUpgradePlanType } from "../types/domain";
-import { isSubscriptionCurrent, isSubscriptionInactive } from "../utils/format";
+import { isSubscriptionCurrent, isSubscriptionInactive, isTrialPlan } from "../utils/format";
 
 type PlanCard = {
   name: "Starter" | "Pro" | "Agency";
@@ -116,21 +116,32 @@ export function UpgradePage() {
     setActiveUpgrade(plan.planType);
     setErrorMessage("");
 
+    const shouldUseCheckout =
+      !subscription || isTrialPlan(subscription.plan) || !isSubscriptionCurrent(subscription.status);
+    const actionLabel = shouldUseCheckout ? "checkout" : "portal de alteracao de plano";
+    const errorFallbackMessage = shouldUseCheckout
+      ? "Nao foi possivel iniciar o checkout agora."
+      : "Nao foi possivel abrir o Stripe para alterar seu plano agora.";
+
     try {
       const response = await runWithFeedback({
         action: async () => {
-          const session = await billingService.createCheckoutSession(plan.planType);
+          const session = shouldUseCheckout
+            ? await billingService.createCheckoutSession(plan.planType)
+            : await billingService.createSubscriptionUpdatePortalSession();
 
           if (!session.url) {
-            throw new Error("Nao foi possivel iniciar o checkout agora.");
+            throw new Error(errorFallbackMessage);
           }
 
           return session;
         },
-        successTitle: "Checkout iniciado",
-        successMessage: `Voce esta sendo levado para o pagamento do plano ${plan.name}.`,
-        errorTitle: "Erro ao iniciar pagamento",
-        errorFallbackMessage: "Nao foi possivel iniciar o checkout agora.",
+        successTitle: "Stripe aberto",
+        successMessage: shouldUseCheckout
+          ? `Voce esta sendo levado para o pagamento do plano ${plan.name}.`
+          : "Voce esta sendo levado para alterar seu plano com seguranca.",
+        errorTitle: `Erro ao abrir ${actionLabel}`,
+        errorFallbackMessage,
         onError: async (message) => {
           setErrorMessage(message);
         }
@@ -145,6 +156,10 @@ export function UpgradePage() {
 
   const isInactive = Boolean(subscription && isSubscriptionInactive(subscription.status));
   const isCurrentSubscription = Boolean(subscription && isSubscriptionCurrent(subscription.status));
+  const isPaidCurrentSubscription = Boolean(
+    subscription && isCurrentSubscription && !isTrialPlan(subscription.plan)
+  );
+  const actionText = isPaidCurrentSubscription ? "Alterar plano" : "Fazer upgrade";
 
   return (
     <div className="space-y-8">
@@ -182,8 +197,10 @@ export function UpgradePage() {
 
       <section className="grid gap-5 xl:grid-cols-3">
         {plans.map((plan) => {
-          const isCurrentPlan = Boolean(subscription && isCurrentSubscription && subscription.plan === plan.name);
-          const isPreviousPlan = Boolean(subscription && !isCurrentSubscription && subscription.plan === plan.name);
+          const isCurrentPlan = Boolean(isPaidCurrentSubscription && subscription?.plan === plan.name);
+          const isPreviousPlan = Boolean(
+            subscription && !isCurrentPlan && !isCurrentSubscription && subscription.plan === plan.name
+          );
 
           return (
             <Card
@@ -203,6 +220,11 @@ export function UpgradePage() {
                   <div className="space-y-3 pr-28 xl:pr-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-2xl font-extrabold text-slate-950 dark:text-white">{plan.name}</h2>
+                      {isCurrentPlan ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+                          Plano atual
+                        </span>
+                      ) : null}
                       {isPreviousPlan ? (
                         <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                           Ultimo plano
@@ -248,10 +270,10 @@ export function UpgradePage() {
                   className="mt-auto"
                   disabled={isCurrentPlan}
                   loading={activeUpgrade === plan.planType}
-                  loadingText="Processando..."
+                  loadingText="Abrindo Stripe..."
                   onClick={() => handleUpgrade(plan)}
                 >
-                  {isCurrentPlan ? "Plano atual" : "Fazer upgrade"}
+                  {isCurrentPlan ? "Plano atual" : actionText}
                 </Button>
               </div>
             </Card>

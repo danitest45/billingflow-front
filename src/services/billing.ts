@@ -12,5 +12,10 @@ export const billingService = {
     return apiRequest<BillingRedirectSessionResponse>("/api/billing/create-customer-portal-session", {
       method: "POST"
     });
+  },
+  createSubscriptionUpdatePortalSession() {
+    return apiRequest<BillingRedirectSessionResponse>("/api/billing/create-subscription-update-portal-session", {
+      method: "POST"
+    });
   }
 };
