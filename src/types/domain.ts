@@ -21,6 +21,19 @@ export type RegisterPayload = {
   password: string;
 };
 
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
+export type ResetPasswordPayload = {
+  token: string;
+  newPassword: string;
+};
+
+export type ApiMessageResponse = {
+  message: string;
+};
+
 export type Client = {
   id: string;
   name: string;

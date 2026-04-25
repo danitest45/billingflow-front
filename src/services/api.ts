@@ -1,5 +1,13 @@
 import { branding } from "../config/branding";
-import type { AuthSession, DashboardSummary, LoginPayload, RegisterPayload } from "../types/domain";
+import type {
+  ApiMessageResponse,
+  AuthSession,
+  DashboardSummary,
+  ForgotPasswordPayload,
+  LoginPayload,
+  RegisterPayload,
+  ResetPasswordPayload
+} from "../types/domain";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "https://localhost:44323";
 const STORAGE_KEY = "billingflow:session";
@@ -212,6 +220,20 @@ export const authService = {
   },
   register(payload: RegisterPayload) {
     return apiRequest<AuthSession>("/api/auth/register", {
+      method: "POST",
+      requiresAuth: false,
+      body: JSON.stringify(payload)
+    });
+  },
+  forgotPassword(payload: ForgotPasswordPayload) {
+    return apiRequest<ApiMessageResponse>("/api/auth/forgot-password", {
+      method: "POST",
+      requiresAuth: false,
+      body: JSON.stringify(payload)
+    });
+  },
+  resetPassword(payload: ResetPasswordPayload) {
+    return apiRequest<ApiMessageResponse>("/api/auth/reset-password", {
       method: "POST",
       requiresAuth: false,
       body: JSON.stringify(payload)

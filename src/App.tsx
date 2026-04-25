@@ -7,11 +7,13 @@ import { BillingCancelPage } from "./pages/BillingCancelPage";
 import { BillingSuccessPage } from "./pages/BillingSuccessPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MessageTemplatePage } from "./pages/MessageTemplatePage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { SubscriptionPage } from "./pages/SubscriptionPage";
 import { UpgradePage } from "./pages/UpgradePage";
 
@@ -67,6 +69,14 @@ export default function App() {
         <Route
           path="/register"
           element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+        />
+        <Route
+          path="/forgot-password"
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
+        />
+        <Route
+          path="/reset-password"
+          element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />}
         />
         <Route path="/*" element={<ProtectedApp />} />
       </Routes>
