@@ -38,13 +38,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isBootstrapping,
       async login(payload) {
         const response = await authService.login(payload);
-        saveSession(response);
-        setSession(response);
+        const sessionWithEmail = { ...response, email: response.email ?? payload.email };
+        saveSession(sessionWithEmail);
+        setSession(sessionWithEmail);
       },
       async register(payload) {
         const response = await authService.register(payload);
-        saveSession(response);
-        setSession(response);
+        const sessionWithEmail = { ...response, email: response.email ?? payload.email };
+        saveSession(sessionWithEmail);
+        setSession(sessionWithEmail);
       },
       logout() {
         clearSession();

@@ -5,9 +5,10 @@ type ModalProps = PropsWithChildren<{
   title: string;
   description: string;
   onClose: () => void;
+  hideCloseButton?: boolean;
 }>;
 
-export function Modal({ open, title, description, onClose, children }: ModalProps) {
+export function Modal({ open, title, description, onClose, hideCloseButton = false, children }: ModalProps) {
   if (!open) {
     return null;
   }
@@ -20,13 +21,15 @@ export function Modal({ open, title, description, onClose, children }: ModalProp
             <h2 className="text-2xl font-bold text-slate-950 dark:text-white">{title}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-300">{description}</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
-          >
-            Fechar
-          </button>
+          {!hideCloseButton ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+            >
+              Fechar
+            </button>
+          ) : null}
         </div>
         <div className="mt-6">{children}</div>
       </div>

@@ -6,9 +6,19 @@ export const invoicesService = {
   list(params: InvoiceListParams) {
     return apiRequest<PaginatedResponse<Invoice>>(`/api/invoices${buildQueryString(params)}`);
   },
-  generate(clientId: string) {
+  generateInvoice(clientId: string) {
     return apiRequest<Invoice>(`/api/invoices/generate/${clientId}`, {
       method: "POST"
+    });
+  },
+  replaceInvoice(clientId: string) {
+    return apiRequest<Invoice>(`/api/invoices/replace/${clientId}`, {
+      method: "POST"
+    });
+  },
+  deleteInvoice(invoiceId: string) {
+    return apiRequest<{ message: string }>(`/api/invoices/${invoiceId}`, {
+      method: "DELETE"
     });
   },
   markAsPaid(id: string) {

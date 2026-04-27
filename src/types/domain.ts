@@ -8,6 +8,7 @@ export type DashboardSummary = {
 export type AuthSession = {
   token: string;
   userId: string;
+  email?: string;
 };
 
 export type LoginPayload = {

@@ -1,8 +1,7 @@
 import { useState, type ReactNode, type SVGProps } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { branding } from "../../config/branding";
 import { useAuth } from "../../hooks/useAuth";
-import { Button } from "../common/Button";
 import { ThemeToggle } from "../common/ThemeToggle";
 
 type AppShellProps = {
@@ -74,6 +73,15 @@ function MenuIcon(props: IconProps) {
   );
 }
 
+function LogoutIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" {...props}>
+      <path d="M10 6H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4" />
+      <path d="M14 8l4 4-4 4M18 12H9" />
+    </svg>
+  );
+}
+
 const navigation = [
   { to: "/dashboard", label: "Dashboard", icon: DashboardIcon },
   { to: "/clients", label: "Clientes", icon: ClientsIcon },
@@ -84,9 +92,10 @@ const navigation = [
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
-  const { logout } = useAuth();
+  const { logout, session } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
+  const userEmail = session?.email?.trim();
+  const userInitial = userEmail?.charAt(0).toUpperCase() || "U";
 
   return (
     <div className="flex h-full flex-col">
@@ -124,25 +133,29 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <div className="mt-auto space-y-4 rounded-[2rem] border border-white/10 bg-white/5 p-5">
-        <div>
-          <p className="text-sm font-semibold text-slate-300">Sessao ativa</p>
-          <p className="mt-1 text-sm text-white">Conta autenticada e pronta para uso.</p>
+      <div className="mt-auto flex items-center gap-3 border-t border-white/10 pt-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-white ring-1 ring-white/10">
+          {userInitial}
         </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/20 px-4 py-3 text-xs uppercase tracking-[0.18em] text-slate-300">
-          {location.pathname.replace("/", "") || "dashboard"}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-white" title={userEmail || "Usuario logado"}>
+            {userEmail || "Usuario logado"}
+          </p>
+          <p className="text-xs text-slate-400">Conta autenticada</p>
         </div>
-        <Button
-          variant="ghost"
-          fullWidth
-          className="border-white/10 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+        <button
+          type="button"
+          title="Sair"
+          aria-label="Sair"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={() => {
             logout();
             navigate("/login", { replace: true });
           }}
         >
+          <LogoutIcon className="h-4 w-4" />
           Sair
-        </Button>
+        </button>
       </div>
     </div>
   );

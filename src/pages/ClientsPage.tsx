@@ -13,7 +13,7 @@ import { branding } from "../config/branding";
 import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
 import { useToast } from "../hooks/useToast";
-import { getErrorMessage } from "../services/api";
+import { ApiError, getErrorMessage } from "../services/api";
 import { clientsService } from "../services/clients";
 import { invoicesService } from "../services/invoices";
 import { subscriptionService } from "../services/subscription";
@@ -88,6 +88,10 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isInvoiceAlreadyExistsError(error: unknown) {
+  return error instanceof ApiError && error.status === 409 && error.code === "INVOICE_ALREADY_EXISTS";
+}
+
 export function ClientsPage() {
   usePageTitle("Clientes");
 
@@ -109,6 +113,8 @@ export function ClientsPage() {
   const [modalMode, setModalMode] = useState<ClientModalMode>("create");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [invoiceConflictTarget, setInvoiceConflictTarget] = useState<Client | null>(null);
+  const [isReplacingInvoice, setIsReplacingInvoice] = useState(false);
   const [rowActionState, setRowActionState] = useState<Record<string, ClientRowAction | undefined>>({});
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -337,14 +343,53 @@ export function ClientsPage() {
     setErrorMessage("");
 
     try {
+      await invoicesService.generateInvoice(client.id);
+      showToast({
+        tone: "success",
+        title: "Cobrança gerada com sucesso.",
+        actionLabel: "Ver cobranças",
+        onAction: () => navigate("/invoices")
+      });
+    } catch (error) {
+      if (isInvoiceAlreadyExistsError(error)) {
+        setInvoiceConflictTarget(client);
+        return;
+      }
+
+      const message = getErrorMessage(error, "Não foi possível gerar a cobrança.");
+
+      if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+        await refreshSubscription();
+      }
+
+      setErrorMessage(message);
+      showToast({
+        tone: "error",
+        title: "Erro ao gerar cobrança",
+        message
+      });
+    } finally {
+      updateRowAction(client.id);
+    }
+  }
+
+  async function handleReplaceInvoice() {
+    if (!invoiceConflictTarget) {
+      return;
+    }
+
+    const target = invoiceConflictTarget;
+    setIsReplacingInvoice(true);
+    setErrorMessage("");
+
+    try {
       await runWithFeedback({
-        action: () => invoicesService.generate(client.id),
-        successTitle: "Cobranca gerada",
-        successMessage: `A cobranca de ${client.name} foi criada com sucesso.`,
-        successActionLabel: "Ver cobrancas",
+        action: () => invoicesService.replaceInvoice(target.id),
+        successTitle: "Cobrança substituída com sucesso.",
+        successActionLabel: "Ver cobranças",
         onSuccessAction: () => navigate("/invoices"),
-        errorTitle: "Erro ao gerar cobranca",
-        errorFallbackMessage: "Nao foi possivel gerar a cobranca agora.",
+        errorTitle: "Erro ao substituir cobrança",
+        errorFallbackMessage: "Não foi possível substituir a cobrança.",
         onError: async (message) => {
           if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
             await refreshSubscription();
@@ -352,10 +397,11 @@ export function ClientsPage() {
           setErrorMessage(message);
         }
       });
+      setInvoiceConflictTarget(null);
     } catch {
       // O feedback visual ja foi tratado pelo hook.
     } finally {
-      updateRowAction(client.id);
+      setIsReplacingInvoice(false);
     }
   }
 
@@ -768,6 +814,38 @@ export function ClientsPage() {
               Confirmar exclusao
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(invoiceConflictTarget)}
+        title="Cobrança já existente"
+        description="Já existe uma cobrança para este cliente no mês atual. Deseja substituir a cobrança atual por uma nova usando os dados atualizados do cliente?"
+        hideCloseButton
+        onClose={() => {
+          if (!isReplacingInvoice) {
+            setInvoiceConflictTarget(null);
+          }
+        }}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={isReplacingInvoice}
+            onClick={() => setInvoiceConflictTarget(null)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={isReplacingInvoice}
+            loadingText="Substituindo..."
+            onClick={handleReplaceInvoice}
+          >
+            Substituir cobrança
+          </Button>
         </div>
       </Modal>
     </div>

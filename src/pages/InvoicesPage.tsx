@@ -5,6 +5,7 @@ import { Button } from "../components/common/Button";
 import { Card } from "../components/common/Card";
 import { EmptyState } from "../components/common/EmptyState";
 import { Input } from "../components/common/Input";
+import { Modal } from "../components/common/Modal";
 import { PageHeader } from "../components/common/PageHeader";
 import { PaginationControls } from "../components/common/PaginationControls";
 import { Select } from "../components/common/Select";
@@ -20,7 +21,7 @@ import { subscriptionService } from "../services/subscription";
 import type { Invoice, InvoiceListParams, PaginatedResponse, SubscriptionInfo } from "../types/domain";
 import { canUseWhatsApp, formatCurrency, formatDate, isSubscriptionInactive, resolveInvoiceStatus } from "../utils/format";
 
-type InvoiceRowAction = "pay" | "whatsapp";
+type InvoiceRowAction = "pay" | "whatsapp" | "delete";
 
 type InvoiceFilterForm = {
   clientName: string;
@@ -68,6 +69,27 @@ function WhatsAppIcon({ className = "" }: { className?: string }) {
   );
 }
 
+function InfoIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 8h.01" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M6 7l1 14h10l1-14" />
+      <path d="M9 7V4h6v3" />
+    </svg>
+  );
+}
+
 export function InvoicesPage() {
   usePageTitle("Cobrancas");
 
@@ -86,6 +108,8 @@ export function InvoicesPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [rowActionState, setRowActionState] = useState<Record<string, InvoiceRowAction | undefined>>({});
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [billingHelpOpen, setBillingHelpOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Invoice | null>(null);
 
   async function loadInvoices(activeQuery: InvoiceListParams) {
     setIsLoading(true);
@@ -242,6 +266,45 @@ export function InvoicesPage() {
     }
   }
 
+  async function handleDeleteInvoice() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    const target = deleteTarget;
+    updateRowAction(target.id, "delete");
+    setErrorMessage("");
+
+    try {
+      await runWithFeedback({
+        action: () => invoicesService.deleteInvoice(target.id),
+        successTitle: "Cobrança excluída com sucesso.",
+        errorTitle: "Erro ao excluir cobrança",
+        errorFallbackMessage: "Não foi possível excluir a cobrança.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura")) {
+            await refreshSubscription();
+          }
+          setErrorMessage(message);
+        }
+      });
+      setDeleteTarget(null);
+
+      if (listState.items.length === 1 && listState.page > 1) {
+        setQuery((current) => ({
+          ...current,
+          page: Math.max((current.page ?? 1) - 1, 1)
+        }));
+      } else {
+        refreshCurrentPage();
+      }
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
+    } finally {
+      updateRowAction(target.id);
+    }
+  }
+
   const hasActiveFilters = useMemo(
     () => Object.values(filters).some((value) => value.trim() !== ""),
     [filters]
@@ -253,7 +316,40 @@ export function InvoicesPage() {
       <PageHeader
         title="Cobrancas"
         description="Acompanhe vencimentos, status e acoes rapidas para reduzir atrasos e manter a operacao em dia."
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-expanded={billingHelpOpen}
+            onClick={() => setBillingHelpOpen((current) => !current)}
+          >
+            <InfoIcon className="h-4 w-4" />
+            Como funcionam as cobranças?
+          </Button>
+        }
       />
+
+      {billingHelpOpen ? (
+        <Card className="border-primary-100 bg-primary-50/80 p-5 dark:border-primary-500/30 dark:bg-primary-500/10">
+          <div className="flex gap-3">
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-primary-700 shadow-sm dark:bg-slate-950/50 dark:text-primary-200">
+              <InfoIcon className="h-5 w-5" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-sm font-extrabold text-slate-950 dark:text-white">
+                Como funcionam as cobranças?
+              </h2>
+              <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Quando um cliente tem valor mensal e dia de vencimento cadastrados, o sistema pode gerar cobranças automaticamente no final de cada dia. Você também pode criar uma cobrança manualmente na tela de clientes, pelo botão Gerar cobrança.
+              </p>
+              <p className="max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+                Nesta tela você acompanha cobranças pendentes, pagas e atrasadas, marca pagamentos como recebidos e envia mensagens de cobrança pelo WhatsApp.
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {isSubscriptionBlocked ? (
         <AlertBanner
@@ -412,6 +508,20 @@ export function InvoicesPage() {
                                 <WhatsAppIcon className="h-4 w-4" />
                               )}
                             </button>
+                            <button
+                              type="button"
+                              title="Excluir cobrança"
+                              aria-label={`Excluir cobrança de ${getInvoiceClient(invoice)}`}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+                              disabled={rowBusy}
+                              onClick={() => setDeleteTarget(invoice)}
+                            >
+                              {rowAction === "delete" ? (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-200 border-t-rose-600" />
+                              ) : (
+                                <TrashIcon className="h-4 w-4" />
+                              )}
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -439,6 +549,45 @@ export function InvoicesPage() {
           navigate("/upgrade");
         }}
       />
+
+      <Modal
+        open={Boolean(deleteTarget)}
+        title="Excluir cobrança"
+        description="Deseja excluir esta cobrança?"
+        hideCloseButton
+        onClose={() => {
+          if (!deleteTarget || rowActionState[deleteTarget.id] !== "delete") {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-4 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+            {deleteTarget
+              ? `A cobrança de ${getInvoiceClient(deleteTarget)} será removida da lista.`
+              : "A cobrança selecionada será removida da lista."}
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={deleteTarget ? rowActionState[deleteTarget.id] === "delete" : false}
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              loading={deleteTarget ? rowActionState[deleteTarget.id] === "delete" : false}
+              loadingText="Excluindo..."
+              onClick={handleDeleteInvoice}
+            >
+              Excluir cobrança
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

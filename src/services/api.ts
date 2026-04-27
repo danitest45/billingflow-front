@@ -19,11 +19,13 @@ type RequestOptions = RequestInit & {
 
 export class ApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -135,16 +137,26 @@ export function normalizeErrorMessage(value: unknown, fallback = DEFAULT_ERROR_M
   return fallback;
 }
 
-async function parseErrorMessage(response: Response) {
+async function parseErrorResponse(response: Response) {
   const contentType = response.headers.get("content-type") ?? "";
 
   if (contentType.includes("application/json")) {
     const payload = await response.json();
-    return normalizeErrorMessage(payload);
+    const code =
+      payload && typeof payload === "object" && !Array.isArray(payload)
+        ? (payload as Record<string, unknown>).code
+        : undefined;
+
+    return {
+      code: typeof code === "string" ? code : undefined,
+      message: normalizeErrorMessage(payload)
+    };
   }
 
   const text = await response.text();
-  return normalizeErrorMessage(text);
+  return {
+    message: normalizeErrorMessage(text)
+  };
 }
 
 export function getErrorMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE) {
@@ -188,7 +200,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       clearSession();
     }
 
-    throw new ApiError(await parseErrorMessage(response), response.status);
+    const errorPayload = await parseErrorResponse(response);
+    throw new ApiError(errorPayload.message, response.status, errorPayload.code);
   }
 
   if (response.status === 204) {
