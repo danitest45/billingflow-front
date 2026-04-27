@@ -465,16 +465,16 @@ export function InvoicesPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(0)}>
+            <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => handleApplyMonthShortcut(0)}>
               Este mês
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(-1)}>
+            <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => handleApplyMonthShortcut(-1)}>
               Mês passado
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(1)}>
+            <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => handleApplyMonthShortcut(1)}>
               Próximo mês
             </Button>
-            <Button type="button" size="sm" variant="ghost" onClick={handleClearFilters}>
+            <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto" onClick={handleClearFilters}>
               Limpar filtros
             </Button>
           </div>
@@ -510,7 +510,7 @@ export function InvoicesPage() {
             value={filters.endDate}
             onChange={(event) => setFilters((current) => ({ ...current, endDate: event.target.value }))}
           />
-          <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <Button type="submit" fullWidth>
               Aplicar
             </Button>
@@ -529,7 +529,142 @@ export function InvoicesPage() {
 
       <Card className="p-0">
         <div className="table-shell">
-          <div className="overflow-x-auto">
+          <div className="md:hidden">
+            {isLoading ? (
+              <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-300">
+                Carregando cobrancas...
+              </div>
+            ) : listState.items.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  title={hasActiveFilters ? "Nenhuma cobranca encontrada" : "Nenhuma cobranca encontrada"}
+                  description={
+                    hasActiveFilters
+                      ? "Ajuste os filtros ou limpe a busca para encontrar outras cobrancas."
+                      : "Gere uma cobranca na tela de clientes para comecar a acompanhar vencimentos e pagamentos por aqui."
+                  }
+                  action={
+                    hasActiveFilters ? (
+                      <Button variant="ghost" onClick={handleClearFilters}>
+                        Limpar filtros
+                      </Button>
+                    ) : isSubscriptionBlocked ? (
+                      <Button variant="secondary" onClick={() => navigate("/upgrade")}>
+                        Fazer upgrade
+                      </Button>
+                    ) : (
+                      <Button variant="secondary" onClick={() => navigate("/clients")}>
+                        Ir para clientes
+                      </Button>
+                    )
+                  }
+                />
+              </div>
+            ) : (
+              <div className="space-y-3 p-3">
+                {listState.items.map((invoice) => {
+                  const normalizedStatus = resolveInvoiceStatus(invoice.status, invoice.paidAt);
+                  const isPaid = normalizedStatus === "paid";
+                  const rowAction = rowActionState[invoice.id];
+                  const rowBusy = Boolean(rowAction);
+
+                  return (
+                    <article
+                      key={invoice.id}
+                      className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="truncate text-lg font-extrabold text-slate-950 dark:text-white">
+                            {getInvoiceClient(invoice)}
+                          </h2>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
+                            Vencimento em {formatDate(invoice.dueDate)}
+                          </p>
+                        </div>
+                        <div className="shrink-0">
+                          <StatusBadge status={invoice.status} paidAt={invoice.paidAt} />
+                        </div>
+                      </div>
+
+                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                          <dt className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Valor
+                          </dt>
+                          <dd className="mt-1 text-base font-extrabold text-slate-950 dark:text-white">
+                            {formatCurrency(invoice.amount)}
+                          </dd>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                          <dt className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Pago em
+                          </dt>
+                          <dd className="mt-1 font-semibold text-slate-800 dark:text-slate-100">{formatDate(invoice.paidAt)}</dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-4 grid gap-2">
+                        <Button
+                          size="sm"
+                          variant={isPaid ? "ghost" : "secondary"}
+                          fullWidth
+                          disabled={isPaid || isSubscriptionBlocked || rowBusy}
+                          loading={rowAction === "pay"}
+                          loadingText="Processando..."
+                          onClick={() => handleMarkAsPaid(invoice.id)}
+                        >
+                          {isPaid ? "Pago" : isSubscriptionBlocked ? "Indisponivel" : "Marcar como pago"}
+                        </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            title="Cobrar pelo WhatsApp"
+                            aria-label={`Cobrar ${getInvoiceClient(invoice)} pelo WhatsApp`}
+                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 ${
+                              isPaid
+                                ? "border-slate-200 bg-white/70 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-500 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                                : "border-emerald-100 bg-emerald-50/70 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                            }`}
+                            disabled={isSubscriptionLoading || isSubscriptionBlocked || rowBusy}
+                            onClick={() => handleChargeOnWhatsApp(invoice)}
+                          >
+                            {rowAction === "whatsapp" ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+                            ) : (
+                              <WhatsAppIcon className="h-4 w-4" />
+                            )}
+                            WhatsApp
+                          </button>
+                          <button
+                            type="button"
+                            title={isPaid ? "Cobranças pagas não podem ser excluídas" : "Excluir cobrança"}
+                            aria-label={
+                              isPaid
+                                ? `Cobrança de ${getInvoiceClient(invoice)} já paga e não pode ser excluída`
+                                : `Excluir cobrança de ${getInvoiceClient(invoice)}`
+                            }
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/70 px-3 text-sm font-semibold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-300 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+                            disabled={isPaid || rowBusy}
+                            onClick={() => setDeleteTarget(invoice)}
+                          >
+                            {rowAction === "delete" ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-200 border-t-rose-600" />
+                            ) : (
+                              <TrashIcon className="h-4 w-4" />
+                            )}
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">
               <thead className="bg-slate-50/80 dark:bg-slate-950/80">
                 <tr className="text-xs uppercase tracking-[0.18em] text-slate-500">
@@ -608,7 +743,7 @@ export function InvoicesPage() {
                               type="button"
                               title="Cobrar pelo WhatsApp"
                               aria-label={`Cobrar ${getInvoiceClient(invoice)} pelo WhatsApp`}
-                              className={`inline-flex h-9 w-9 items-center justify-center rounded-2xl border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 ${
+                              className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl border transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 ${
                                 isPaid
                                   ? "border-slate-200 bg-white/70 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-500 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
                                   : "border-emerald-100 bg-emerald-50/70 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
@@ -630,7 +765,7 @@ export function InvoicesPage() {
                                   ? `Cobrança de ${getInvoiceClient(invoice)} já paga e não pode ser excluída`
                                   : `Excluir cobrança de ${getInvoiceClient(invoice)}`
                               }
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
                               disabled={isPaid || rowBusy}
                               onClick={() => setDeleteTarget(invoice)}
                             >

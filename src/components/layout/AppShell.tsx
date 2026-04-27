@@ -105,9 +105,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-emerald-400 text-lg font-extrabold text-white shadow-lg shadow-primary-950/20">
               {branding.shortName}
             </div>
-            <div>
-              <p className="text-lg font-extrabold text-white">{branding.productName}</p>
-              <p className="text-sm text-slate-300">{branding.productTagline}</p>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-extrabold text-white">{branding.productName}</p>
+              <p className="truncate text-sm text-slate-300">{branding.productTagline}</p>
             </div>
           </div>
         </div>
@@ -147,7 +147,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           type="button"
           title="Sair"
           aria-label="Sair"
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 text-xs font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-semibold text-slate-200 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
           onClick={() => {
             logout();
             navigate("/login", { replace: true });
@@ -165,7 +165,7 @@ export function AppShell({ children }: AppShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-transparent">
+    <div className="min-h-screen overflow-x-hidden bg-transparent">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-[290px] border-r border-white/10 bg-slate-950 px-6 py-8 dark:border-slate-800 dark:bg-slate-950 lg:block">
         <SidebarContent />
       </aside>
@@ -173,7 +173,7 @@ export function AppShell({ children }: AppShellProps) {
       {mobileMenuOpen ? (
         <div className="fixed inset-0 z-40 bg-slate-950/45 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
           <aside
-            className="h-full w-[280px] bg-slate-950 px-6 py-8 dark:bg-slate-950"
+            className="h-full w-[min(18rem,calc(100vw-1rem))] overflow-y-auto bg-slate-950 px-5 py-6 dark:bg-slate-950"
             onClick={(event) => event.stopPropagation()}
           >
             <SidebarContent onNavigate={() => setMobileMenuOpen(false)} />
@@ -184,12 +184,12 @@ export function AppShell({ children }: AppShellProps) {
       <div className="lg:pl-[290px]">
         <header className="sticky top-0 z-20 border-b border-white/40 bg-white/70 backdrop-blur-xl dark:border-slate-800/80 dark:bg-slate-950/70">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-700 dark:text-primary-300">Controle financeiro</p>
-              <h1 className="text-lg font-bold text-slate-950 dark:text-white">Gestao de clientes e recorrencia</h1>
+            <div className="min-w-0 pr-3">
+              <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-primary-700 sm:tracking-[0.24em] dark:text-primary-300">Controle financeiro</p>
+              <h1 className="truncate text-base font-bold text-slate-950 sm:text-lg dark:text-white">Gestao de clientes e recorrencia</h1>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <ThemeToggle />
               <button
                 type="button"
@@ -203,8 +203,8 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="space-y-8">{children}</div>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+          <div className="space-y-6 sm:space-y-8">{children}</div>
         </main>
       </div>
     </div>

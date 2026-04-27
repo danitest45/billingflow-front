@@ -15,7 +15,7 @@ export function ToastViewport() {
   }
 
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-[70] flex w-full max-w-sm flex-col gap-3">
+    <div className="pointer-events-none fixed left-4 right-4 top-4 z-[70] flex flex-col gap-3 sm:left-auto sm:w-full sm:max-w-sm">
       {toasts.map((toast) => (
         <div
           key={toast.id}
@@ -29,7 +29,7 @@ export function ToastViewport() {
             <button
               type="button"
               onClick={() => dismissToast(toast.id)}
-              className="rounded-full px-2 py-1 text-xs font-semibold text-current/70 transition hover:bg-black/5 hover:text-current"
+              className="min-h-11 rounded-full px-3 py-2 text-sm font-semibold text-current/70 transition hover:bg-black/5 hover:text-current"
             >
               Fechar
             </button>

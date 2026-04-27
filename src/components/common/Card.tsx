@@ -5,6 +5,5 @@ type CardProps = PropsWithChildren<{
 }>;
 
 export function Card({ children, className = "" }: CardProps) {
-  return <div className={`glass-panel p-6 ${className}`}>{children}</div>;
+  return <div className={`glass-panel p-4 sm:p-6 ${className}`}>{children}</div>;
 }
-

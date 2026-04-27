@@ -594,7 +594,7 @@ export function ClientsPage() {
               setFilters((current) => ({ ...current, maxMonthlyAmount: event.target.value }))
             }
           />
-          <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <Button type="submit" fullWidth>
               Aplicar
             </Button>
@@ -613,7 +613,115 @@ export function ClientsPage() {
 
       <Card className="p-0">
         <div className="table-shell">
-          <div className="overflow-x-auto">
+          <div className="md:hidden">
+            {isLoading ? (
+              <div className="px-4 py-10 text-center text-sm text-slate-500 dark:text-slate-300">
+                Carregando clientes...
+              </div>
+            ) : listState.items.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  title={hasActiveFilters ? "Nenhum cliente encontrado" : "Nenhum cliente cadastrado"}
+                  description={
+                    hasActiveFilters
+                      ? "Ajuste ou limpe os filtros para tentar encontrar clientes novamente."
+                      : "Crie seu primeiro cliente para comecar a organizar contratos recorrentes e gerar cobrancas manualmente."
+                  }
+                  action={
+                    hasActiveFilters ? (
+                      <Button variant="ghost" onClick={handleClearFilters}>
+                        Limpar filtros
+                      </Button>
+                    ) : isSubscriptionBlocked ? (
+                      <Button variant="secondary" onClick={() => navigate("/upgrade")}>
+                        Fazer upgrade
+                      </Button>
+                    ) : (
+                      <Button onClick={openCreateModal}>Cadastrar primeiro cliente</Button>
+                    )
+                  }
+                />
+              </div>
+            ) : (
+              <div className="space-y-3 p-3">
+                {listState.items.map((client) => {
+                  const rowAction = rowActionState[client.id];
+                  const rowBusy = Boolean(rowAction);
+
+                  return (
+                    <article
+                      key={client.id}
+                      className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70"
+                    >
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-extrabold text-slate-950 dark:text-white">{client.name}</h2>
+                        <p className="mt-1 break-all text-sm text-slate-500 dark:text-slate-300">{client.email}</p>
+                      </div>
+
+                      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                          <dt className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Telefone
+                          </dt>
+                          <dd className="mt-1 font-semibold text-slate-800 dark:text-slate-100">{formatPhone(client.phone)}</dd>
+                        </div>
+                        <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                          <dt className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Vencimento
+                          </dt>
+                          <dd className="mt-1 font-semibold text-slate-800 dark:text-slate-100">Dia {client.dueDay}</dd>
+                        </div>
+                        <div className="col-span-2 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                          <dt className="text-sm font-semibold text-slate-500 dark:text-slate-400">
+                            Valor mensal
+                          </dt>
+                          <dd className="mt-1 text-base font-extrabold text-slate-950 dark:text-white">
+                            {formatCurrency(client.monthlyAmount)}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          fullWidth
+                          disabled={rowBusy}
+                          onClick={() => openEditModal(client)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          fullWidth
+                          disabled={rowBusy || isSubscriptionBlocked}
+                          loading={rowAction === "generate"}
+                          loadingText="Gerando..."
+                          onClick={() => handleGenerateInvoice(client)}
+                        >
+                          Gerar cobranca
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          fullWidth
+                          disabled={rowBusy}
+                          loading={rowAction === "delete"}
+                          loadingText="Excluindo..."
+                          onClick={() => setDeleteTarget(client)}
+                        >
+                          Excluir
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="min-w-full divide-y divide-slate-200 text-left dark:divide-slate-800">
               <thead className="bg-slate-50/80 dark:bg-slate-950/80">
                 <tr className="text-xs uppercase tracking-[0.18em] text-slate-500">

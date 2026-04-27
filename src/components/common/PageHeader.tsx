@@ -14,10 +14,10 @@ export function PageHeader({ title, description, action }: PageHeaderProps) {
         <span className="inline-flex rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200">
           {branding.productName}
         </span>
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white">{title}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 sm:text-3xl dark:text-white">{title}</h1>
         <p className="max-w-2xl text-sm text-slate-500 dark:text-slate-300">{description}</p>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? <div className="shrink-0 [&>button]:w-full sm:[&>button]:w-auto">{action}</div> : null}
     </div>
   );
 }

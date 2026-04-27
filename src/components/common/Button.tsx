@@ -30,7 +30,7 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const sizeClass = size === "sm" ? "px-3 py-2 text-xs" : "px-4 py-3 text-sm";
+  const sizeClass = size === "sm" ? "min-h-11 px-3 py-2 text-sm" : "min-h-11 px-4 py-3 text-sm";
   const spinnerClass =
     variant === "ghost"
       ? "border-slate-300 border-t-slate-700"
