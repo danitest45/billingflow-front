@@ -81,6 +81,14 @@ function sanitizeComparableMessage(message: string) {
 function mapBusinessErrorMessage(message: string) {
   const normalized = sanitizeComparableMessage(message);
 
+  if (normalized === "invoice_already_paid") {
+    return "Esta cobrança já foi paga e não pode ser alterada ou excluída.";
+  }
+
+  if (normalized === "invoice_already_exists") {
+    return "Já existe uma cobrança para este cliente no mês atual.";
+  }
+
   if (normalized.includes("ja existe cobranca para este cliente no mes atual")) {
     return "Ja existe uma cobranca gerada para este cliente neste mes.";
   }
@@ -131,6 +139,11 @@ export function normalizeErrorMessage(value: unknown, fallback = DEFAULT_ERROR_M
       if (nestedMessage) {
         return nestedMessage;
       }
+    }
+
+    const codeMessage = normalizeErrorMessage(record.code, "");
+    if (codeMessage) {
+      return codeMessage;
     }
   }
 

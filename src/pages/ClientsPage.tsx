@@ -92,6 +92,10 @@ function isInvoiceAlreadyExistsError(error: unknown) {
   return error instanceof ApiError && error.status === 409 && error.code === "INVOICE_ALREADY_EXISTS";
 }
 
+function isInvoiceAlreadyPaidError(error: unknown) {
+  return error instanceof ApiError && error.code === "INVOICE_ALREADY_PAID";
+}
+
 export function ClientsPage() {
   usePageTitle("Clientes");
 
@@ -383,23 +387,38 @@ export function ClientsPage() {
     setErrorMessage("");
 
     try {
-      await runWithFeedback({
-        action: () => invoicesService.replaceInvoice(target.id),
-        successTitle: "Cobrança substituída com sucesso.",
-        successActionLabel: "Ver cobranças",
-        onSuccessAction: () => navigate("/invoices"),
-        errorTitle: "Erro ao substituir cobrança",
-        errorFallbackMessage: "Não foi possível substituir a cobrança.",
-        onError: async (message) => {
-          if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
-            await refreshSubscription();
-          }
-          setErrorMessage(message);
-        }
+      await invoicesService.replaceInvoice(target.id);
+      showToast({
+        tone: "success",
+        title: "Cobrança substituída com sucesso.",
+        actionLabel: "Ver cobranças",
+        onAction: () => navigate("/invoices")
       });
       setInvoiceConflictTarget(null);
-    } catch {
-      // O feedback visual ja foi tratado pelo hook.
+    } catch (error) {
+      if (isInvoiceAlreadyPaidError(error)) {
+        const message = "Esta cobrança já foi paga e não pode ser substituída.";
+        setInvoiceConflictTarget(null);
+        showToast({
+          tone: "error",
+          title: "Cobrança já paga",
+          message
+        });
+        return;
+      }
+
+      const message = getErrorMessage(error, "Não foi possível substituir a cobrança.");
+
+      if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+        await refreshSubscription();
+      }
+
+      setErrorMessage(message);
+      showToast({
+        tone: "error",
+        title: "Erro ao substituir cobrança",
+        message
+      });
     } finally {
       setIsReplacingInvoice(false);
     }
@@ -828,24 +847,29 @@ export function ClientsPage() {
           }
         }}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={isReplacingInvoice}
-            onClick={() => setInvoiceConflictTarget(null)}
-          >
-            Cancelar
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            loading={isReplacingInvoice}
-            loadingText="Substituindo..."
-            onClick={handleReplaceInvoice}
-          >
-            Substituir cobrança
-          </Button>
+        <div className="space-y-5">
+          <p className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+            Cobranças já pagas não podem ser substituídas.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isReplacingInvoice}
+              onClick={() => setInvoiceConflictTarget(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              loading={isReplacingInvoice}
+              loadingText="Substituindo..."
+              onClick={handleReplaceInvoice}
+            >
+              Substituir cobrança
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>

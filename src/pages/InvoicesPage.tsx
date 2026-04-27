@@ -56,6 +56,65 @@ function buildInvoiceQuery(filters: InvoiceFilterForm): InvoiceListParams {
   };
 }
 
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateInputLabel(value: string) {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
+function getMonthDateRange(monthOffset = 0) {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + monthOffset + 1, 0);
+
+  return {
+    startDate: formatDateInputValue(start),
+    endDate: formatDateInputValue(end)
+  };
+}
+
+function createCurrentMonthFilters(): InvoiceFilterForm {
+  return {
+    ...emptyFilters,
+    ...getMonthDateRange()
+  };
+}
+
+function getPeriodFilterLabel(startDate?: string, endDate?: string) {
+  if (!startDate && !endDate) {
+    return "Todos os períodos";
+  }
+
+  const currentMonth = getMonthDateRange();
+  if (startDate === currentMonth.startDate && endDate === currentMonth.endDate) {
+    return "Este mês";
+  }
+
+  const previousMonth = getMonthDateRange(-1);
+  if (startDate === previousMonth.startDate && endDate === previousMonth.endDate) {
+    return "Mês passado";
+  }
+
+  const nextMonth = getMonthDateRange(1);
+  if (startDate === nextMonth.startDate && endDate === nextMonth.endDate) {
+    return "Próximo mês";
+  }
+
+  return "Período personalizado";
+}
+
 function getInvoiceClient(invoice: Invoice) {
   return invoice.clientName || "Cliente nao informado";
 }
@@ -97,11 +156,12 @@ export function InvoicesPage() {
   const { showToast } = useToast();
   const { runWithFeedback } = useApiFeedback();
   const [listState, setListState] = useState<PaginatedResponse<Invoice>>(initialListState);
-  const [filters, setFilters] = useState<InvoiceFilterForm>(emptyFilters);
-  const [query, setQuery] = useState<InvoiceListParams>({
+  const [filters, setFilters] = useState<InvoiceFilterForm>(() => createCurrentMonthFilters());
+  const [query, setQuery] = useState<InvoiceListParams>(() => ({
+    ...buildInvoiceQuery(createCurrentMonthFilters()),
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE
-  });
+  }));
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
@@ -180,6 +240,21 @@ export function InvoicesPage() {
     setQuery({
       page: 1,
       pageSize: DEFAULT_PAGE_SIZE
+    });
+  }
+
+  function handleApplyMonthShortcut(monthOffset: number) {
+    const dateRange = getMonthDateRange(monthOffset);
+    const nextFilters = {
+      ...filters,
+      ...dateRange
+    };
+
+    setFilters(nextFilters);
+    setQuery({
+      ...buildInvoiceQuery(nextFilters),
+      page: 1,
+      pageSize: query.pageSize ?? DEFAULT_PAGE_SIZE
     });
   }
 
@@ -309,6 +384,10 @@ export function InvoicesPage() {
     () => Object.values(filters).some((value) => value.trim() !== ""),
     [filters]
   );
+  const activePeriodLabel = useMemo(
+    () => getPeriodFilterLabel(query.startDate, query.endDate),
+    [query.endDate, query.startDate]
+  );
   const isSubscriptionBlocked = Boolean(subscription && isSubscriptionInactive(subscription.status));
 
   return (
@@ -365,6 +444,41 @@ export function InvoicesPage() {
       ) : null}
 
       <Card className="bg-white/90 dark:bg-slate-900/85">
+        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+              Período aplicado
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex rounded-full border border-primary-100 bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700 dark:border-primary-500/30 dark:bg-primary-500/10 dark:text-primary-200">
+                {activePeriodLabel}
+              </span>
+              {query.startDate && query.endDate ? (
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-300">
+                  {formatDateInputLabel(query.startDate)} até {formatDateInputLabel(query.endDate)}
+                </span>
+              ) : (
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-300">
+                  Sem filtro de data
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(0)}>
+              Este mês
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(-1)}>
+              Mês passado
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => handleApplyMonthShortcut(1)}>
+              Próximo mês
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={handleClearFilters}>
+              Limpar filtros
+            </Button>
+          </div>
+        </div>
         <form className="grid gap-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={handleApplyFilters}>
           <Input
             label="Cliente"
@@ -510,10 +624,14 @@ export function InvoicesPage() {
                             </button>
                             <button
                               type="button"
-                              title="Excluir cobrança"
-                              aria-label={`Excluir cobrança de ${getInvoiceClient(invoice)}`}
+                              title={isPaid ? "Cobranças pagas não podem ser excluídas" : "Excluir cobrança"}
+                              aria-label={
+                                isPaid
+                                  ? `Cobrança de ${getInvoiceClient(invoice)} já paga e não pode ser excluída`
+                                  : `Excluir cobrança de ${getInvoiceClient(invoice)}`
+                              }
                               className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white/70 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/50 dark:text-slate-400 dark:hover:border-rose-500/30 dark:hover:bg-rose-500/10 dark:hover:text-rose-300"
-                              disabled={rowBusy}
+                              disabled={isPaid || rowBusy}
                               onClick={() => setDeleteTarget(invoice)}
                             >
                               {rowAction === "delete" ? (
