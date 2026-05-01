@@ -6,16 +6,19 @@ type ModalProps = PropsWithChildren<{
   description: string;
   onClose: () => void;
   hideCloseButton?: boolean;
+  size?: "md" | "lg";
 }>;
 
-export function Modal({ open, title, description, onClose, hideCloseButton = false, children }: ModalProps) {
+export function Modal({ open, title, description, onClose, hideCloseButton = false, size = "md", children }: ModalProps) {
   if (!open) {
     return null;
   }
 
+  const sizeClass = size === "lg" ? "max-w-5xl" : "max-w-2xl";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-2xl rounded-[2rem] border border-white/70 bg-white p-6 shadow-soft dark:border-slate-700 dark:bg-slate-900">
+      <div className={`max-h-[calc(100vh-4rem)] w-full overflow-y-auto rounded-[2rem] border border-white/70 bg-white p-6 shadow-soft dark:border-slate-700 dark:bg-slate-900 ${sizeClass}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <h2 className="text-2xl font-bold text-slate-950 dark:text-white">{title}</h2>

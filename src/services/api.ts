@@ -89,6 +89,16 @@ function mapBusinessErrorMessage(message: string) {
     return "Já existe uma cobrança para este cliente no mês atual.";
   }
 
+  if (
+    normalized === "invoice_not_expected_for_current_month" ||
+    normalized === "billing_not_expected_for_current_month" ||
+    normalized.includes("cliente nao possui cobranca prevista para este mes") ||
+    normalized.includes("nao possui cobranca prevista para este mes") ||
+    normalized.includes("cobranca nao prevista para este mes")
+  ) {
+    return "Este cliente não possui cobrança prevista para este mês.";
+  }
+
   if (normalized.includes("ja existe cobranca para este cliente no mes atual")) {
     return "Ja existe uma cobranca gerada para este cliente neste mes.";
   }

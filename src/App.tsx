@@ -10,6 +10,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { InvoicesPage } from "./pages/InvoicesPage";
 import { LandingPage } from "./pages/LandingPage";
+import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 import { LoginPage } from "./pages/LoginPage";
 import { MessageTemplatePage } from "./pages/MessageTemplatePage";
 import { RegisterPage } from "./pages/RegisterPage";
@@ -83,6 +84,8 @@ export default function App() {
           path="/support"
           element={isAuthenticated ? <AppShell><SupportPage /></AppShell> : <SupportPage />}
         />
+        <Route path="/termos" element={<TermsPage />} />
+        <Route path="/privacidade" element={<PrivacyPage />} />
         <Route path="/*" element={<ProtectedApp />} />
       </Routes>
       <ToastViewport />

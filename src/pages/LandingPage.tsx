@@ -472,8 +472,12 @@ export function LandingPage() {
             <Link className="hover:text-white" to="/support">
               Suporte
             </Link>
-            <span>Termos</span>
-            <span>Privacidade</span>
+            <Link className="hover:text-white" to="/termos">
+              Termos
+            </Link>
+            <Link className="hover:text-white" to="/privacidade">
+              Privacidade
+            </Link>
             <span>Contato</span>
           </div>
         </div>

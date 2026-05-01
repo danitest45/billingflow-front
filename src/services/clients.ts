@@ -1,10 +1,13 @@
 import { apiRequest } from "./api";
 import { buildQueryString } from "./query";
-import type { Client, ClientListParams, ClientPayload, PaginatedResponse } from "../types/domain";
+import type { Client, ClientBillingSummary, ClientListParams, ClientPayload, PaginatedResponse } from "../types/domain";
 
 export const clientsService = {
   list(params: ClientListParams) {
     return apiRequest<PaginatedResponse<Client>>(`/api/clients${buildQueryString(params)}`);
+  },
+  getClientBillingSummary(clientId: string) {
+    return apiRequest<ClientBillingSummary>(`/api/clients/${clientId}/billing-summary`);
   },
   create(payload: ClientPayload) {
     return apiRequest<Client>("/api/clients", {

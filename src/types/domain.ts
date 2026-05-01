@@ -42,6 +42,8 @@ export type SupportPayload = {
   message: string;
 };
 
+export type BillingCycle = 1 | 2 | 3 | 4;
+
 export type Client = {
   id: string;
   name: string;
@@ -49,9 +51,13 @@ export type Client = {
   phone: string;
   monthlyAmount: number;
   dueDay: number;
+  billingCycle: BillingCycle;
+  billingStartDate: string;
 };
 
 export type ClientPayload = Omit<Client, "id">;
+
+export type ClientBillingInfo = Client;
 
 export type PaginatedResponse<T> = {
   items: T[];
@@ -80,6 +86,15 @@ export type Invoice = {
   dueDate: string;
   status?: unknown;
   paidAt?: string | null;
+};
+
+export type InvoiceSummary = Invoice;
+
+export type ClientBillingSummary = {
+  client: ClientBillingInfo;
+  currentInvoice: InvoiceSummary | null;
+  nextDueDate: string | null;
+  history: InvoiceSummary[];
 };
 
 export type InvoiceListParams = {

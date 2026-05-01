@@ -9,6 +9,8 @@ import { Modal } from "../components/common/Modal";
 import { PageHeader } from "../components/common/PageHeader";
 import { PaginationControls } from "../components/common/PaginationControls";
 import { Select } from "../components/common/Select";
+import { StatusBadge } from "../components/common/StatusBadge";
+import { WhatsAppUpgradeModal } from "../components/subscription/WhatsAppUpgradeModal";
 import { branding } from "../config/branding";
 import { useApiFeedback } from "../hooks/useApiFeedback";
 import { usePageTitle } from "../hooks/usePageTitle";
@@ -16,31 +18,41 @@ import { useToast } from "../hooks/useToast";
 import { ApiError, getErrorMessage } from "../services/api";
 import { clientsService } from "../services/clients";
 import { invoicesService } from "../services/invoices";
+import { messageTemplateService } from "../services/messageTemplate";
 import { subscriptionService } from "../services/subscription";
 import type {
+  BillingCycle,
   Client,
+  ClientBillingSummary,
   ClientListParams,
   ClientPayload,
+  InvoiceSummary,
   PaginatedResponse,
   SubscriptionInfo
 } from "../types/domain";
 import {
+  canUseWhatsApp,
+  formatDate,
   formatCurrency,
+  formatSubscriptionPlan,
+  formatSubscriptionStatus,
   getSubscriptionStatusTone,
   isSubscriptionInactive,
-  formatSubscriptionPlan,
-  formatSubscriptionStatus
+  resolveInvoiceStatus
 } from "../utils/format";
 import { formatCurrencyBRL, formatPhone, parseCurrencyBRL, unmaskPhone } from "../utils/clientForm";
 
 type ClientModalMode = "create" | "edit";
 type ClientRowAction = "generate" | "delete";
+type ClientBillingAction = "generate" | "pay" | "whatsapp";
 type ClientFormValues = {
   name: string;
   email: string;
   phone: string;
   monthlyAmount: string;
   dueDay: string;
+  billingCycle: string;
+  billingStartDate: string;
 };
 type ClientFormErrors = Partial<Record<keyof ClientFormValues, string>>;
 type ClientFilterForm = {
@@ -51,14 +63,42 @@ type ClientFilterForm = {
 };
 
 const DEFAULT_PAGE_SIZE = 10;
+const BILLING_CYCLE_OPTIONS: Array<{ value: BillingCycle; label: string }> = [
+  { value: 1, label: "Mensal" },
+  { value: 2, label: "Trimestral" },
+  { value: 3, label: "Semestral" },
+  { value: 4, label: "Anual" }
+];
 
-const emptyForm: ClientFormValues = {
-  name: "",
-  email: "",
-  phone: "",
-  monthlyAmount: "",
-  dueDay: "1"
-};
+function getTodayDateInput() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function normalizeDateInput(value?: string | null) {
+  if (!value) {
+    return getTodayDateInput();
+  }
+
+  const datePart = value.slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(datePart) ? datePart : getTodayDateInput();
+}
+
+function createEmptyForm(): ClientFormValues {
+  return {
+    name: "",
+    email: "",
+    phone: "",
+    monthlyAmount: "",
+    dueDay: "1",
+    billingCycle: "1",
+    billingStartDate: getTodayDateInput()
+  };
+}
 
 const emptyFilters: ClientFilterForm = {
   search: "",
@@ -88,6 +128,37 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isBillingCycle(value: number): value is BillingCycle {
+  return BILLING_CYCLE_OPTIONS.some((option) => option.value === value);
+}
+
+function getBillingCycleLabel(value: number) {
+  return BILLING_CYCLE_OPTIONS.find((option) => option.value === value)?.label ?? "Mensal";
+}
+
+function getInvoiceClient(invoice: InvoiceSummary) {
+  return invoice.clientName || "Cliente nao informado";
+}
+
+function MoreIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </svg>
+  );
+}
+
+function WhatsAppIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M19.1 4.9A9.6 9.6 0 0 0 3.8 16.2L3 21l4.9-1.3A9.6 9.6 0 0 0 19.1 4.9Z" />
+      <path d="M8.8 8.6c.2-.5.4-.5.7-.5h.5c.2 0 .4.1.5.4l.7 1.6c.1.3.1.5-.1.7l-.4.5c-.1.1-.2.3-.1.5.5 1 1.3 1.8 2.3 2.3.2.1.4 0 .5-.1l.6-.5c.2-.2.4-.2.7-.1l1.5.7c.3.1.4.3.4.6 0 .6-.4 1.4-1 1.6-.7.3-2 .2-3.7-.7-1.9-1-3.4-2.5-4.3-4.3-.8-1.6-1-2.8-.7-3.5Z" />
+    </svg>
+  );
+}
+
 function isInvoiceAlreadyExistsError(error: unknown) {
   return error instanceof ApiError && error.status === 409 && error.code === "INVOICE_ALREADY_EXISTS";
 }
@@ -109,7 +180,7 @@ export function ClientsPage() {
     page: 1,
     pageSize: DEFAULT_PAGE_SIZE
   });
-  const [formData, setFormData] = useState<ClientFormValues>(emptyForm);
+  const [formData, setFormData] = useState<ClientFormValues>(() => createEmptyForm());
   const [formErrors, setFormErrors] = useState<ClientFormErrors>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -120,6 +191,13 @@ export function ClientsPage() {
   const [invoiceConflictTarget, setInvoiceConflictTarget] = useState<Client | null>(null);
   const [isReplacingInvoice, setIsReplacingInvoice] = useState(false);
   const [rowActionState, setRowActionState] = useState<Record<string, ClientRowAction | undefined>>({});
+  const [activeMenuClientId, setActiveMenuClientId] = useState<string | null>(null);
+  const [billingSummaryTarget, setBillingSummaryTarget] = useState<Client | null>(null);
+  const [billingSummary, setBillingSummary] = useState<ClientBillingSummary | null>(null);
+  const [isBillingSummaryLoading, setIsBillingSummaryLoading] = useState(false);
+  const [billingSummaryError, setBillingSummaryError] = useState("");
+  const [billingActionState, setBillingActionState] = useState<ClientBillingAction | null>(null);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   async function loadClients(activeQuery: ClientListParams) {
@@ -166,7 +244,7 @@ export function ClientsPage() {
   }
 
   function resetFormState() {
-    setFormData(emptyForm);
+    setFormData(createEmptyForm());
     setFormErrors({});
     setSelectedClient(null);
     setModalMode("create");
@@ -204,7 +282,9 @@ export function ClientsPage() {
       email: client.email,
       phone: formatPhone(client.phone),
       monthlyAmount: formatCurrencyBRL(client.monthlyAmount),
-      dueDay: String(client.dueDay)
+      dueDay: String(client.dueDay),
+      billingCycle: String(client.billingCycle ?? 1),
+      billingStartDate: normalizeDateInput(client.billingStartDate)
     });
     setFormErrors({});
     setErrorMessage("");
@@ -221,6 +301,47 @@ export function ClientsPage() {
       setSubscription(response);
     } catch {
       setSubscription(null);
+    }
+  }
+
+  async function loadClientBillingSummary(clientId: string) {
+    setIsBillingSummaryLoading(true);
+    setBillingSummaryError("");
+
+    try {
+      const response = await clientsService.getClientBillingSummary(clientId);
+      setBillingSummary(response);
+    } catch (error) {
+      setBillingSummary(null);
+      setBillingSummaryError(getErrorMessage(error, "Não foi possível carregar as cobranças deste cliente."));
+    } finally {
+      setIsBillingSummaryLoading(false);
+    }
+  }
+
+  function openBillingSummary(client: Client) {
+    setBillingSummaryTarget(client);
+    setBillingSummary(null);
+    setBillingSummaryError("");
+    setActiveMenuClientId(null);
+    void loadClientBillingSummary(client.id);
+  }
+
+  function closeBillingSummary() {
+    if (billingActionState) {
+      return;
+    }
+
+    setBillingSummaryTarget(null);
+    setBillingSummary(null);
+    setBillingSummaryError("");
+  }
+
+  async function refreshOpenBillingSummary() {
+    const clientId = billingSummary?.client.id ?? billingSummaryTarget?.id;
+
+    if (clientId) {
+      await loadClientBillingSummary(clientId);
     }
   }
 
@@ -250,6 +371,8 @@ export function ClientsPage() {
     const parsedPhone = unmaskPhone(formData.phone);
     const parsedMonthlyAmount = parseCurrencyBRL(formData.monthlyAmount);
     const parsedDueDay = Number(formData.dueDay);
+    const parsedBillingCycle = Number(formData.billingCycle);
+    const billingStartDate = normalizeDateInput(formData.billingStartDate);
 
     if (!trimmedName) {
       nextErrors.name = "Informe o nome do cliente.";
@@ -275,18 +398,31 @@ export function ClientsPage() {
       nextErrors.dueDay = "Escolha um dia de vencimento entre 1 e 31.";
     }
 
+    if (!isBillingCycle(parsedBillingCycle)) {
+      nextErrors.billingCycle = "Escolha uma periodicidade de cobrança.";
+    }
+
+    if (!formData.billingStartDate) {
+      nextErrors.billingStartDate = "Informe a data de início da cobrança.";
+    } else if (billingStartDate !== formData.billingStartDate) {
+      nextErrors.billingStartDate = "Informe uma data válida.";
+    }
+
     setFormErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
 
+    const billingCycle: BillingCycle = isBillingCycle(parsedBillingCycle) ? parsedBillingCycle : 1;
     const payload: ClientPayload = {
       name: trimmedName,
       email: trimmedEmail,
       phone: parsedPhone,
       monthlyAmount: parsedMonthlyAmount,
-      dueDay: parsedDueDay
+      dueDay: parsedDueDay,
+      billingCycle,
+      billingStartDate
     };
 
     setIsSaving(true);
@@ -374,6 +510,136 @@ export function ClientsPage() {
       });
     } finally {
       updateRowAction(client.id);
+    }
+  }
+
+  async function handleGenerateInvoiceFromSummary() {
+    const client = billingSummary?.client ?? billingSummaryTarget;
+
+    if (!client) {
+      return;
+    }
+
+    if (isSubscriptionBlocked) {
+      showToast({
+        tone: "error",
+        title: "Assinatura inativa",
+        message: "Sua assinatura esta inativa. Faca upgrade para continuar."
+      });
+      return;
+    }
+
+    setBillingActionState("generate");
+    setBillingSummaryError("");
+
+    try {
+      await invoicesService.generateInvoice(client.id);
+      showToast({
+        tone: "success",
+        title: "Cobrança gerada com sucesso."
+      });
+      await refreshOpenBillingSummary();
+      refreshCurrentPage();
+    } catch (error) {
+      const message = getErrorMessage(error, "Não foi possível gerar a cobrança.");
+
+      if (message.toLowerCase().includes("assinatura") || message.toLowerCase().includes("limite de clientes")) {
+        await refreshSubscription();
+      }
+
+      setBillingSummaryError(message);
+      showToast({
+        tone: "error",
+        title: "Erro ao gerar cobrança",
+        message
+      });
+    } finally {
+      setBillingActionState(null);
+    }
+  }
+
+  async function handleMarkSummaryInvoiceAsPaid(invoice: InvoiceSummary) {
+    if (isSubscriptionBlocked) {
+      showToast({
+        tone: "error",
+        title: "Assinatura inativa",
+        message: "Sua assinatura esta inativa. Faca upgrade para continuar."
+      });
+      return;
+    }
+
+    setBillingActionState("pay");
+    setBillingSummaryError("");
+
+    try {
+      await runWithFeedback({
+        action: () => invoicesService.markAsPaid(invoice.id),
+        successTitle: "Pagamento marcado",
+        successMessage: "A cobrança foi marcada como paga com sucesso.",
+        errorTitle: "Erro ao marcar pagamento",
+        errorFallbackMessage: "Não foi possível marcar a cobrança como paga agora.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura")) {
+            await refreshSubscription();
+          }
+          setBillingSummaryError(message);
+        }
+      });
+      await refreshOpenBillingSummary();
+      refreshCurrentPage();
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
+    } finally {
+      setBillingActionState(null);
+    }
+  }
+
+  async function handleChargeSummaryInvoiceOnWhatsApp(invoice: InvoiceSummary) {
+    if (isSubscriptionBlocked) {
+      showToast({
+        tone: "error",
+        title: "Assinatura inativa",
+        message: "Sua assinatura esta inativa. Faca upgrade para continuar."
+      });
+      return;
+    }
+
+    if (subscription && !canUseWhatsApp(subscription.plan)) {
+      setUpgradeModalOpen(true);
+      return;
+    }
+
+    setBillingActionState("whatsapp");
+    setBillingSummaryError("");
+
+    try {
+      const preview = await runWithFeedback({
+        action: async () => {
+          const response = await messageTemplateService.getWhatsAppPreview(invoice.id);
+
+          if (!response.whatsAppUrl) {
+            throw new Error("Não foi possível gerar o link do WhatsApp agora.");
+          }
+
+          return response;
+        },
+        successTitle: "Mensagem aberta no WhatsApp",
+        successMessage: `A cobrança de ${getInvoiceClient(invoice)} está pronta para envio.`,
+        errorTitle: "Erro ao abrir WhatsApp",
+        errorFallbackMessage: "Não foi possível preparar a cobrança por WhatsApp agora.",
+        onError: async (message) => {
+          if (message.toLowerCase().includes("assinatura")) {
+            await refreshSubscription();
+          }
+          setBillingSummaryError(message);
+        }
+      });
+      window.open(preview.whatsAppUrl, "_blank", "noopener,noreferrer");
+      await refreshOpenBillingSummary();
+    } catch {
+      // O feedback visual ja foi tratado pelo hook.
+    } finally {
+      setBillingActionState(null);
     }
   }
 
@@ -478,6 +744,11 @@ export function ClientsPage() {
       ? "Atualize os dados do contrato recorrente e mantenha os vencimentos em ordem."
       : "Preencha os dados para cadastrar um novo contrato recorrente.";
   const modalSubmitLabel = modalMode === "edit" ? "Salvar alteracoes" : "Salvar cliente";
+  const summaryClient = billingSummary?.client ?? billingSummaryTarget;
+  const currentInvoice = billingSummary?.currentInvoice ?? null;
+  const currentInvoiceStatus = currentInvoice ? resolveInvoiceStatus(currentInvoice.status, currentInvoice.paidAt) : "pending";
+  const currentInvoicePaid = currentInvoiceStatus === "paid";
+  const billingHistory = billingSummary?.history ?? [];
 
   return (
     <div className="space-y-8">
@@ -654,7 +925,12 @@ export function ClientsPage() {
                       className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900/70"
                     >
                       <div className="min-w-0">
-                        <h2 className="truncate text-lg font-extrabold text-slate-950 dark:text-white">{client.name}</h2>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="min-w-0 truncate text-lg font-extrabold text-slate-950 dark:text-white">{client.name}</h2>
+                          <span className="inline-flex shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300">
+                            {getBillingCycleLabel(client.billingCycle)}
+                          </span>
+                        </div>
                         <p className="mt-1 break-all text-sm text-slate-500 dark:text-slate-300">{client.email}</p>
                       </div>
 
@@ -681,16 +957,7 @@ export function ClientsPage() {
                         </div>
                       </dl>
 
-                      <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          fullWidth
-                          disabled={rowBusy}
-                          onClick={() => openEditModal(client)}
-                        >
-                          Editar
-                        </Button>
+                      <div className="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2">
                         <Button
                           size="sm"
                           variant="secondary"
@@ -704,15 +971,49 @@ export function ClientsPage() {
                         </Button>
                         <Button
                           size="sm"
-                          variant="danger"
+                          variant="ghost"
                           fullWidth
                           disabled={rowBusy}
-                          loading={rowAction === "delete"}
-                          loadingText="Excluindo..."
-                          onClick={() => setDeleteTarget(client)}
+                          onClick={() => openBillingSummary(client)}
                         >
-                          Excluir
+                          Ver cobranças
                         </Button>
+                        <div>
+                          <button
+                            type="button"
+                            aria-label={`Mais ações para ${client.name}`}
+                            aria-expanded={activeMenuClientId === client.id}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/80 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                            disabled={rowBusy}
+                            onClick={() => setActiveMenuClientId((current) => (current === client.id ? null : client.id))}
+                          >
+                            <MoreIcon className="h-5 w-5" />
+                          </button>
+                          {activeMenuClientId === client.id ? (
+                            <div className="mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm font-semibold shadow-soft dark:border-slate-700 dark:bg-slate-900">
+                              <button
+                                type="button"
+                                className="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                                onClick={() => {
+                                  setActiveMenuClientId(null);
+                                  openEditModal(client);
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                className="block w-full px-4 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                onClick={() => {
+                                  setActiveMenuClientId(null);
+                                  setDeleteTarget(client);
+                                }}
+                              >
+                                Excluir
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </article>
                   );
@@ -773,21 +1074,20 @@ export function ClientsPage() {
 
                     return (
                       <tr key={client.id} className="text-sm text-slate-700 dark:text-slate-300">
-                        <td className="px-6 py-4 font-semibold text-slate-950 dark:text-white">{client.name}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1.5">
+                            <span className="font-semibold text-slate-950 dark:text-white">{client.name}</span>
+                            <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300">
+                              {getBillingCycleLabel(client.billingCycle)}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-6 py-4">{client.email}</td>
                         <td className="px-6 py-4">{formatPhone(client.phone)}</td>
                         <td className="px-6 py-4">{formatCurrency(client.monthlyAmount)}</td>
                         <td className="px-6 py-4">Todo dia {client.dueDay}</td>
                         <td className="px-6 py-4">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={rowBusy}
-                              onClick={() => openEditModal(client)}
-                            >
-                              Editar
-                            </Button>
+                          <div className="flex items-center justify-end gap-2">
                             <Button
                               size="sm"
                               variant="secondary"
@@ -800,14 +1100,48 @@ export function ClientsPage() {
                             </Button>
                             <Button
                               size="sm"
-                              variant="danger"
+                              variant="ghost"
                               disabled={rowBusy}
-                              loading={rowAction === "delete"}
-                              loadingText="Excluindo..."
-                              onClick={() => setDeleteTarget(client)}
+                              onClick={() => openBillingSummary(client)}
                             >
-                              Excluir
+                              Ver cobranças
                             </Button>
+                            <div>
+                              <button
+                                type="button"
+                                aria-label={`Mais ações para ${client.name}`}
+                                aria-expanded={activeMenuClientId === client.id}
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white/80 text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                                disabled={rowBusy}
+                                onClick={() => setActiveMenuClientId((current) => (current === client.id ? null : client.id))}
+                              >
+                                <MoreIcon className="h-5 w-5" />
+                              </button>
+                              {activeMenuClientId === client.id ? (
+                                <div className="mt-2 w-36 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1 text-sm font-semibold shadow-soft dark:border-slate-700 dark:bg-slate-900">
+                                  <button
+                                    type="button"
+                                    className="block w-full px-4 py-2 text-left text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                                    onClick={() => {
+                                      setActiveMenuClientId(null);
+                                      openEditModal(client);
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="block w-full px-4 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    onClick={() => {
+                                      setActiveMenuClientId(null);
+                                      setDeleteTarget(client);
+                                    }}
+                                  >
+                                    Excluir
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -892,6 +1226,32 @@ export function ClientsPage() {
               );
             })}
           </Select>
+          <Select
+            label="Periodicidade de cobrança"
+            value={formData.billingCycle}
+            onChange={(event) => updateFormField("billingCycle", event.target.value)}
+            error={formErrors.billingCycle}
+            required
+          >
+            {BILLING_CYCLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+          <div className="space-y-2">
+            <Input
+              label="Início da cobrança"
+              type="date"
+              value={formData.billingStartDate}
+              onChange={(event) => updateFormField("billingStartDate", event.target.value)}
+              error={formErrors.billingStartDate}
+              required
+            />
+            <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Usamos essa data para saber em quais meses gerar cobranças automaticamente.
+            </p>
+          </div>
 
           <div className="flex justify-end gap-3 md:col-span-2">
             <Button
@@ -914,6 +1274,202 @@ export function ClientsPage() {
           </div>
         </form>
       </Modal>
+
+      <Modal
+        open={Boolean(billingSummaryTarget)}
+        title={summaryClient ? `Cobranças de ${summaryClient.name}` : "Cobranças do cliente"}
+        description="Resumo financeiro do cliente, cobrança atual, próxima previsão e histórico."
+        size="lg"
+        onClose={closeBillingSummary}
+      >
+        <div className="space-y-5">
+          {isBillingSummaryLoading ? (
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-medium text-slate-500 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
+              Carregando resumo de cobranças...
+            </div>
+          ) : null}
+
+          {billingSummaryError ? (
+            <div className="rounded-3xl border border-rose-100 bg-rose-50 px-4 py-4 text-sm font-medium text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-100">
+              {billingSummaryError}
+            </div>
+          ) : null}
+
+          {summaryClient && !isBillingSummaryLoading ? (
+            <>
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-base font-extrabold text-slate-950 dark:text-white">Dados do cliente</h3>
+                  <span className="inline-flex w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-950/60 dark:text-slate-300">
+                    {getBillingCycleLabel(summaryClient.billingCycle)}
+                  </span>
+                </div>
+                <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Nome</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">{summaryClient.name}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">E-mail</dt>
+                    <dd className="mt-1 break-all font-bold text-slate-950 dark:text-white">{summaryClient.email}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Telefone</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">{formatPhone(summaryClient.phone)}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Valor</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">{formatCurrency(summaryClient.monthlyAmount)}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Periodicidade</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">{getBillingCycleLabel(summaryClient.billingCycle)}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Dia de vencimento</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">Dia {summaryClient.dueDay}</dd>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50 sm:col-span-2">
+                    <dt className="font-semibold text-slate-500 dark:text-slate-400">Início da cobrança</dt>
+                    <dd className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(summaryClient.billingStartDate)}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
+                <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-base font-extrabold text-slate-950 dark:text-white">Cobrança atual</h3>
+                  {currentInvoice ? <StatusBadge status={currentInvoice.status} paidAt={currentInvoice.paidAt} /> : null}
+                </div>
+
+                {currentInvoice ? (
+                  <div className="space-y-4">
+                    <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                        <dt className="font-semibold text-slate-500 dark:text-slate-400">Valor</dt>
+                        <dd className="mt-1 text-base font-extrabold text-slate-950 dark:text-white">{formatCurrency(currentInvoice.amount)}</dd>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                        <dt className="font-semibold text-slate-500 dark:text-slate-400">Vencimento</dt>
+                        <dd className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(currentInvoice.dueDate)}</dd>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                        <dt className="font-semibold text-slate-500 dark:text-slate-400">Status</dt>
+                        <dd className="mt-1">
+                          <StatusBadge status={currentInvoice.status} paidAt={currentInvoice.paidAt} />
+                        </dd>
+                      </div>
+                      <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/50">
+                        <dt className="font-semibold text-slate-500 dark:text-slate-400">Pago em</dt>
+                        <dd className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(currentInvoice.paidAt)}</dd>
+                      </div>
+                    </dl>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      {!currentInvoicePaid ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          loading={billingActionState === "pay"}
+                          loadingText="Processando..."
+                          disabled={Boolean(billingActionState) || isSubscriptionBlocked}
+                          onClick={() => handleMarkSummaryInvoiceAsPaid(currentInvoice)}
+                        >
+                          Marcar como pago
+                        </Button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm font-semibold text-emerald-600 transition hover:border-emerald-200 hover:bg-emerald-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                        disabled={Boolean(billingActionState) || isSubscriptionBlocked}
+                        onClick={() => handleChargeSummaryInvoiceOnWhatsApp(currentInvoice)}
+                      >
+                        {billingActionState === "whatsapp" ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+                        ) : (
+                          <WhatsAppIcon className="h-4 w-4" />
+                        )}
+                        WhatsApp
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 dark:bg-slate-950/50 dark:text-slate-300">
+                      Nenhuma cobrança gerada para o período atual.
+                    </p>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        loading={billingActionState === "generate"}
+                        loadingText="Gerando..."
+                        disabled={Boolean(billingActionState) || isSubscriptionBlocked}
+                        onClick={handleGenerateInvoiceFromSummary}
+                      >
+                        Gerar cobrança
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-500/30 dark:bg-primary-500/10">
+                <h3 className="text-base font-extrabold text-slate-950 dark:text-white">Próxima cobrança prevista</h3>
+                <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                  {billingSummary?.nextDueDate
+                    ? `Próxima cobrança prevista para ${formatDate(billingSummary.nextDueDate)}`
+                    : "Nenhuma próxima cobrança prevista no momento."}
+                </p>
+              </section>
+
+              <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/70">
+                <h3 className="text-base font-extrabold text-slate-950 dark:text-white">Histórico</h3>
+                {billingHistory.length > 0 ? (
+                  <div className="mt-4 space-y-3">
+                    {billingHistory.map((invoice) => (
+                      <article
+                        key={invoice.id}
+                        className="grid gap-3 rounded-2xl bg-slate-50 p-3 text-sm dark:bg-slate-950/50 sm:grid-cols-[1fr_auto]"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <div>
+                            <p className="font-semibold text-slate-500 dark:text-slate-400">Vencimento</p>
+                            <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(invoice.dueDate)}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-500 dark:text-slate-400">Valor</p>
+                            <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatCurrency(invoice.amount)}</p>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-500 dark:text-slate-400">Pago em</p>
+                            <p className="mt-1 font-bold text-slate-950 dark:text-white">{formatDate(invoice.paidAt)}</p>
+                          </div>
+                        </div>
+                        <div className="sm:self-center">
+                          <StatusBadge status={invoice.status} paidAt={invoice.paidAt} />
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-4 text-sm font-medium text-slate-600 dark:bg-slate-950/50 dark:text-slate-300">
+                    Nenhuma cobrança no histórico.
+                  </p>
+                )}
+              </section>
+            </>
+          ) : null}
+        </div>
+      </Modal>
+
+      <WhatsAppUpgradeModal
+        open={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        onUpgrade={() => {
+          setUpgradeModalOpen(false);
+          navigate("/upgrade");
+        }}
+      />
 
       <Modal
         open={Boolean(deleteTarget)}
